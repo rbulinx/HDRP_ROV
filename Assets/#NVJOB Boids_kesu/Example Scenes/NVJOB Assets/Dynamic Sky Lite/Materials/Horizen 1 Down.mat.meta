@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 87128303a153b744894e6b5e66463c2a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Dynamic Sky Lite/Materials/Horizen
+    1 Down.mat
+  uploadId: 355922

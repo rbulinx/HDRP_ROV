@@ -1,0 +1,45 @@
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+
+# Unity generated files
+*.csproj
+*.sln
+*.slnx
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+sysinfo.txt
+
+# Unity crash reports
+/CrashReports/
+
+# Visual Studio / Rider / VS Code
+/.vs/
+/.vscode/
+/.idea/
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local/generated outputs
+/.dotnet-cli/
+/generated_graphs/
+/Recordings/

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: b61f0d8d8244b4b28aa66b0c8cb46a8d
+ShaderImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Standard Assets/Effects/ImageEffects/Shaders/ColorCorrection3DLut.shader
+  uploadId: 355922

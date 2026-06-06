@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 153b8154be91faa499dc806dfb7516d3
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Scenes/Butterfly.unity
+  uploadId: 355922

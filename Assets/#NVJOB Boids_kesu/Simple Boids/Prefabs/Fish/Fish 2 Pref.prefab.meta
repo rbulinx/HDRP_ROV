@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4245ff9a4dd9cd24d8b511911616bf71
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Simple Boids/Prefabs/Fish/Fish 2 Pref.prefab
+  uploadId: 355922

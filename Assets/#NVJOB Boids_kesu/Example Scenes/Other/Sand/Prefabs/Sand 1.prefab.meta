@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 68c5b749a9aa2f9428a406881fc6d481
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Other/Sand/Prefabs/Sand 1.prefab
+  uploadId: 355922

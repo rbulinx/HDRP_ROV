@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8a12c745772ba924e85f705bd8ba1b74
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Dynamic Sky Lite/Prefabs/Dynamic
+    Sky.prefab
+  uploadId: 355922

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5e73c0500ef079d40b139e6c503d1f42
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Dynamic Sky Lite/Materials/Lens
+    Flare.flare
+  uploadId: 355922

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7e4bdb064d041804ca0ba48b59832685
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Other/Arena/Prefabs/Arena.prefab
+  uploadId: 355922

@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: c03d994bf3f70ef4e938d325e5209928
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Dynamic Sky Lite/Dynamic
+    Sky Lite Standard Clouds Type 2.shader
+  uploadId: 355922

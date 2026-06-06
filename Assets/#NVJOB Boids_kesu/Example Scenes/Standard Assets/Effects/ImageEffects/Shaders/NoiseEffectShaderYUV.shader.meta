@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 0e447868506ba49f0a73235b8a8b647a
+ShaderImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Standard Assets/Effects/ImageEffects/Shaders/NoiseEffectShaderYUV.shader
+  uploadId: 355922

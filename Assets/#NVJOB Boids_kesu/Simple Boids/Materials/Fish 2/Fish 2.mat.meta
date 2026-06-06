@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 54915b3d4079a534e83f7a633f0536a1
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Simple Boids/Materials/Fish 2/Fish 2.mat
+  uploadId: 355922

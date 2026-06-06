@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 3c22be1ea032db648b119abc61eea931
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/SC Shaders (Legacy)/SC
+    Shader for water.shader
+  uploadId: 355922

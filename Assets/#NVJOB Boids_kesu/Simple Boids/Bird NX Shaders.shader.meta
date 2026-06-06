@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 0b1fdadd03e8511409522e5965ff678a
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Simple Boids/Bird NX Shaders.shader
+  uploadId: 355922

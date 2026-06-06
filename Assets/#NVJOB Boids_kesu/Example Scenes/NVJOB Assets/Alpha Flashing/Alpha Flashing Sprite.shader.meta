@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: d3bdbc6f4222aeb428fdf4075e9a18a3
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Alpha Flashing/Alpha
+    Flashing Sprite.shader
+  uploadId: 355922

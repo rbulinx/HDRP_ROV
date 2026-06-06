@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: f0b793eee99b21343b3dac7a94da6e2e
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/SkyBox Two Colors/SkyBox
+    Two Colors.shader
+  uploadId: 355922

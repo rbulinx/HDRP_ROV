@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 14e3b4e2ab21cfb45ad72fac47aff4cc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Other/Arena/Materials/Arena 1.mat
+  uploadId: 355922

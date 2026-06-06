@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 89f88673c37180240803a632e01c3598
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Scenes/Fish Boids Danger.unity
+  uploadId: 355922

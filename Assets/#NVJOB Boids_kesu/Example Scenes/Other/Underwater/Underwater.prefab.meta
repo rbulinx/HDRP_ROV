@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ed13d6c16df1ff9469675ad10c637dfe
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Other/Underwater/Underwater.prefab
+  uploadId: 355922

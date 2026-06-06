@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: f58445347fe2e4b8396487ed2bfa02ad
+ShaderImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/Standard Assets/Effects/ImageEffects/Shaders/RadialBlur.shader
+  uploadId: 355922

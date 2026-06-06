@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c29c2d9a5d76d014eb04800673f0ce87
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/Water Shader SAF/Prefabs/Water
+    1.prefab
+  uploadId: 355922

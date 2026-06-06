@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 276179b8b0dc7db4eb29e60ef637b484
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 164188
+  packageName: '#NVJOB Simple Boids (Flocks of Birds, Fish and Insects)'
+  packageVersion: 1.1.1
+  assetPath: Assets/#NVJOB Boids/Example Scenes/NVJOB Assets/SC Shaders (Legacy)/SC
+    Shader (Normalmap, Occlusion, Reflection, Cull Off).shader
+  uploadId: 355922
