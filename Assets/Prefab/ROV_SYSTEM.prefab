@@ -652,6 +652,7 @@ GameObject:
   - component: {fileID: 3756903681747267409}
   - component: {fileID: 6361665961258678473}
   - component: {fileID: 6130816243917928624}
+  - component: {fileID: 1665329003332217001}
   - component: {fileID: 2332813191845165006}
   - component: {fileID: 498160587961811903}
   m_Layer: 0
@@ -679,6 +680,7 @@ Transform:
   - {fileID: 5180247445505840669}
   - {fileID: 8593663972590794998}
   - {fileID: 94956539923834852}
+  - {fileID: 7486120701745760184}
   m_Father: {fileID: 5207416049851236020}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &8142150455077755807
@@ -770,7 +772,7 @@ Rigidbody:
   m_Mass: 60
   m_LinearDamping: 0
   m_AngularDamping: 5
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_CenterOfMass: {x: 0, y: -0.05, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
@@ -779,13 +781,36 @@ Rigidbody:
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
-  m_ImplicitCom: 1
+  m_ImplicitCom: 0
   m_ImplicitTensor: 1
-  m_UseGravity: 0
+  m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 2
+--- !u!114 &1665329003332217001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 509625564804617805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4f2c6c16f0f4e74a9d35da711f3d645, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ROVBuoyancyStability
+  centerOfMassLocalOffset: {x: 0, y: -0.05, z: 0}
+  centerOfBuoyancyLocalOffset: {x: 0, y: 0.1, z: 0}
+  useTrimmedRestAttitude: 1
+  restPitchDeg: 2
+  restRollDeg: -1
+  metacentricHeight: 0.12
+  setRigidbodyCenterOfMass: 1
+  useUnityGravity: 1
+  buoyancyScale: 1
+  verticalDampingNPerMps: 120
+  rollPitchAngularDamping: 0.25
 --- !u!114 &2332813191845165006
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -831,6 +856,8 @@ MonoBehaviour:
   autoTetherPayLabel: Auto Pay
   autoTetherPayOnColor: '#66D9FF'
   autoTetherPayPayingColor: '#FF3333'
+  showAttitude: 1
+  attitudeLabel: Attitude
   showTurnCount: 1
   showTotalTurnCount: 0
   turnCountLabel: Twist
@@ -858,7 +885,7 @@ MonoBehaviour:
   maxHeaveThrustN: 200
   maxYawTorqueNm: 2
   useAccelerationMode: 0
-  heaveWorldUp: 1
+  heaveWorldUp: 0
   controlResponseGain: 1
   minControlResponseGain: 0.25
   maxControlResponseGain: 3
@@ -902,6 +929,8 @@ MonoBehaviour:
   altitudeTerrainMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  altitudeRayLocalDown: 1
+  altitudeHoldForceAlongRay: 1
   altitudeRayLengthMeters: 30
   altitudeRayOriginUpOffset: 0.25
   altitudeHoldForceNPerM: 260
@@ -910,7 +939,7 @@ MonoBehaviour:
   altitudeHoldTrimMetersPerSecond: 0.35
   altitudeHoldManualDeadzone: 0.15
   altitudeHoldMinTargetMeters: 0.3
-  altitudeHoldMaxTargetMeters: 12
+  altitudeHoldMaxTargetMeters: 50
   altitudeMeasureHz: 15
   enableAutoTetherPayFeature: 1
   autoTetherPayEnabled: 0
@@ -929,7 +958,7 @@ MonoBehaviour:
   minTiltDeg: -60
   maxTiltDeg: 30
   invertTilt: 0
-  keepUpright: 1
+  keepUpright: 0
   uprightStrength: 20
   uprightDamping: 6
   clampToWaterSurface: 1
@@ -3433,7 +3462,7 @@ MonoBehaviour:
   autoAdjustNodesWithLength: 1
   targetSegmentLength: 0.5
   topAnchor: {fileID: 7886808046039792112}
-  bottomAttach: {fileID: 3253558066923263900}
+  bottomAttach: {fileID: 7486120701745760184}
   enableWaterSurface: 1
   waterLevelY: 0
   waterSurfaceTransform: {fileID: 0}
@@ -3445,10 +3474,14 @@ MonoBehaviour:
   dragLinear: 2
   dragQuadratic: 0
   currentVelocity: {x: 0, y: 0, z: 0}
-  applyCurrentLoadToBottom: 1
-  currentLoadBottomShare: 0.5
-  currentTensionScale: 1
-  maxCurrentTensionNewton: 1500
+  applyCurrentLoadToBottom: 0
+  currentLoadBottomShare: 0.18
+  currentTensionScale: 0.45
+  maxCurrentTensionNewton: 500
+  applyCableBuoyancyLoadToBottom: 0
+  cableBuoyancyBottomShare: 0.35
+  cableBuoyancyLoadScale: 1
+  maxCableBuoyancyLoadNewton: 300
   substeps: 3
   solverIterations: 12
   constraintVelocityDamping: 0.15
@@ -3474,17 +3507,21 @@ MonoBehaviour:
   maxCollisionCorrection: 0.02
   collisionVelocityDamping: 0.35
   tensionMode: 1
-  endToEndStiffnessNPerM: 12000
-  endToEndDampingNPerMps: 1800
+  endToEndStiffnessNPerM: 9000
+  endToEndDampingNPerMps: 1300
   reelInSpringScale: 0.25
   applyTensionToBottom: 1
   bottomRigidbody: {fileID: 0}
   slackMeters: 0.02
   requireNearTautMeters: 0.2
   axialDamping: 500
-  maxTensionNewton: 1500
-  maxTensionRate: 4000
-  applyForceAtAttachPoint: 0
+  maxTensionNewton: 1100
+  maxTensionRate: 3000
+  applyForceAtAttachPoint: 1
+  useBottomSegmentDirectionForTension: 1
+  useBottomSegmentConstraintTension: 1
+  bottomSegmentConstraintTensionScale: 0.25
+  maxBottomSegmentConstraintTensionNewton: 500
   tensionSmoothingHz: 8
   directionSmoothingHz: 10
   renderLine: 1
@@ -3763,6 +3800,37 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1 &8397650734869393621
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7486120701745760184}
+  m_Layer: 0
+  m_Name: TetherAttach
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7486120701745760184
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8397650734869393621}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3253558066923263900}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8674772709172166145
 GameObject:
   m_ObjectHideFlags: 0

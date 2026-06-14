@@ -71,6 +71,12 @@ public class CableXPBD : MonoBehaviour
     public float currentTensionScale = 1f;
     public float maxCurrentTensionNewton = 1500f;
 
+    [Header("Cable Buoyancy Load -> Bottom")]
+    public bool applyCableBuoyancyLoadToBottom = true;
+    [Range(0f, 1f)] public float cableBuoyancyBottomShare = 0.35f;
+    public float cableBuoyancyLoadScale = 1f;
+    public float maxCableBuoyancyLoadNewton = 300f;
+
     // -------------------------
     // XPBD solver settings
     // -------------------------
@@ -159,6 +165,10 @@ public class CableXPBD : MonoBehaviour
     public float maxTensionRate = 4000f;
 
     public bool applyForceAtAttachPoint = false;
+    public bool useBottomSegmentDirectionForTension = true;
+    public bool useBottomSegmentConstraintTension = true;
+    public float bottomSegmentConstraintTensionScale = 0.25f;
+    public float maxBottomSegmentConstraintTensionNewton = 500f;
 
     public float tensionSmoothingHz = 8f;
 
@@ -198,7 +208,10 @@ public class CableXPBD : MonoBehaviour
     float lastStretch;
     float lastTensionN;
     float lastCurrentTensionN;
+    float lastCableBuoyancyLoadN;
+    float lastBottomSegmentTensionN;
     Vector3 currentLoadOnBottom = Vector3.zero;
+    Vector3 cableBuoyancyLoadOnBottom = Vector3.zero;
 
     float tensionFiltered = 0f;
     Vector3 dirFiltered = Vector3.forward;
@@ -451,6 +464,8 @@ public class CableXPBD : MonoBehaviour
         lastStretch = lastCableLength - deployedLength;
         currentLoadOnBottom = EstimateCurrentLoadOnBottom();
         lastCurrentTensionN = currentLoadOnBottom.magnitude;
+        cableBuoyancyLoadOnBottom = EstimateCableBuoyancyLoadOnBottom();
+        lastBottomSegmentTensionN = EstimateBottomSegmentConstraintTension(h);
 
         lastTensionN = 0f;
         if (applyTensionToBottom && bottomRigidbody != null && topAnchor != null && bottomAttach != null)
@@ -463,7 +478,16 @@ public class CableXPBD : MonoBehaviour
         else
         {
             tensionFiltered = 0f;
-            lastTensionN = lastCurrentTensionN;
+            Vector3 F = currentLoadOnBottom + cableBuoyancyLoadOnBottom;
+            if (bottomRigidbody != null && bottomAttach != null && F.sqrMagnitude > 1e-8f)
+            {
+                if (applyForceAtAttachPoint)
+                    bottomRigidbody.AddForceAtPosition(F, bottomAttach.position, ForceMode.Force);
+                else
+                    bottomRigidbody.AddForce(F, ForceMode.Force);
+            }
+
+            lastTensionN = Mathf.Sqrt(lastCurrentTensionN * lastCurrentTensionN + lastCableBuoyancyLoadN * lastCableBuoyancyLoadN);
         }
     }
 
@@ -855,6 +879,39 @@ public class CableXPBD : MonoBehaviour
         return load;
     }
 
+    Vector3 EstimateCableBuoyancyLoadOnBottom()
+    {
+        lastCableBuoyancyLoadN = 0f;
+
+        if (!applyCableBuoyancyLoadToBottom) return Vector3.zero;
+        if (x == null || x.Length < 2) return Vector3.zero;
+
+        float surfaceY = GetWaterLevelY();
+        float totalWeightedNodes = 0f;
+
+        for (int i = 0; i < x.Length; i++)
+        {
+            bool isAboveSurface = enableWaterSurface && (x[i].y > surfaceY);
+            if (isAboveSurface)
+                continue;
+
+            float weight = (i == 0 || i == x.Length - 1) ? 0.5f : 1f;
+            totalWeightedNodes += weight;
+        }
+
+        if (totalWeightedNodes <= 0f) return Vector3.zero;
+
+        Vector3 effectiveCableWeight = Physics.gravity * massPerNode * totalWeightedNodes * (1f - buoyancyFactor);
+        Vector3 load = effectiveCableWeight * Mathf.Clamp01(cableBuoyancyBottomShare) * Mathf.Max(0f, cableBuoyancyLoadScale);
+
+        float maxLoad = Mathf.Max(0f, maxCableBuoyancyLoadNewton);
+        if (maxLoad > 0f && load.magnitude > maxLoad)
+            load = load.normalized * maxLoad;
+
+        lastCableBuoyancyLoadN = load.magnitude;
+        return load;
+    }
+
     // -------------------------
     // Stabilized tension application
     // -------------------------
@@ -865,7 +922,7 @@ public class CableXPBD : MonoBehaviour
 
         float endDist = Vector3.Distance(topAnchor.position, bottomAttach.position);
 
-        Vector3 dir = ComputeEndToEndDirSafe();
+        Vector3 dir = ComputeTensionDirectionSafe();
 
         float aDir = 1f - Mathf.Exp(-dt * Mathf.Max(0.1f, directionSmoothingHz));
         dirFiltered = Vector3.Slerp(dirFiltered, dir, aDir);
@@ -895,21 +952,23 @@ public class CableXPBD : MonoBehaviour
             tensionTarget = Mathf.Clamp(tensionTarget, 0f, Mathf.Max(0f, maxTensionNewton));
         }
 
+        tensionTarget = Mathf.Max(tensionTarget, lastBottomSegmentTensionN);
+
         float maxStep = Mathf.Max(0f, maxTensionRate) * dt;
         tensionFiltered = Mathf.MoveTowards(tensionFiltered, tensionTarget, maxStep);
 
         float aTen = 1f - Mathf.Exp(-dt * Mathf.Max(0.1f, tensionSmoothingHz));
         tensionFiltered = Mathf.Lerp(tensionFiltered, tensionTarget, aTen);
 
-        // Tension pulls toward the top anchor; current load adds the water-current contribution.
-        Vector3 F = -dirFiltered * tensionFiltered + currentLoadOnBottom;
+        // Tension pulls toward the top anchor; distributed cable loads add their bottom reaction.
+        Vector3 F = -dirFiltered * tensionFiltered + currentLoadOnBottom + cableBuoyancyLoadOnBottom;
 
         if (applyForceAtAttachPoint)
             rb.AddForceAtPosition(F, bottomAttach.position, ForceMode.Force);
         else
             rb.AddForce(F, ForceMode.Force);
 
-        lastTensionN = Mathf.Sqrt(tensionFiltered * tensionFiltered + lastCurrentTensionN * lastCurrentTensionN);
+        lastTensionN = Mathf.Sqrt(tensionFiltered * tensionFiltered + lastCurrentTensionN * lastCurrentTensionN + lastCableBuoyancyLoadN * lastCableBuoyancyLoadN);
     }
 
     void ApplyTensionEA_Stabilized(Rigidbody rb, float dt)
@@ -933,7 +992,7 @@ public class CableXPBD : MonoBehaviour
             float EA = Mathf.Max(0f, axialRigidityEA);
             float k = EA / L0;
 
-            Vector3 dir = ComputeEndToEndDirSafe();
+            Vector3 dir = ComputeTensionDirectionSafe();
 
             float aDir = 1f - Mathf.Exp(-dt * Mathf.Max(0.1f, directionSmoothingHz));
             dirFiltered = Vector3.Slerp(dirFiltered, dir, aDir);
@@ -947,21 +1006,23 @@ public class CableXPBD : MonoBehaviour
             tensionTarget = Mathf.Clamp(tensionTarget, 0f, Mathf.Max(0f, maxTensionNewton));
         }
 
+        tensionTarget = Mathf.Max(tensionTarget, lastBottomSegmentTensionN);
+
         float maxStep = Mathf.Max(0f, maxTensionRate) * dt;
         tensionFiltered = Mathf.MoveTowards(tensionFiltered, tensionTarget, maxStep);
 
         float aTen = 1f - Mathf.Exp(-dt * Mathf.Max(0.1f, tensionSmoothingHz));
         tensionFiltered = Mathf.Lerp(tensionFiltered, tensionTarget, aTen);
 
-        // Tension pulls toward the top anchor; current load adds the water-current contribution.
-        Vector3 F = -dirFiltered * tensionFiltered + currentLoadOnBottom;
+        // Tension pulls toward the top anchor; distributed cable loads add their bottom reaction.
+        Vector3 F = -dirFiltered * tensionFiltered + currentLoadOnBottom + cableBuoyancyLoadOnBottom;
 
         if (applyForceAtAttachPoint)
             rb.AddForceAtPosition(F, bottomAttach.position, ForceMode.Force);
         else
             rb.AddForce(F, ForceMode.Force);
 
-        lastTensionN = Mathf.Sqrt(tensionFiltered * tensionFiltered + lastCurrentTensionN * lastCurrentTensionN);
+        lastTensionN = Mathf.Sqrt(tensionFiltered * tensionFiltered + lastCurrentTensionN * lastCurrentTensionN + lastCableBuoyancyLoadN * lastCableBuoyancyLoadN);
     }
 
     Vector3 ComputeEndToEndDirSafe()
@@ -972,6 +1033,40 @@ public class CableXPBD : MonoBehaviour
         float m = d.magnitude;
         if (m > 1e-6f) return d / m;
         return Vector3.forward;
+    }
+
+    Vector3 ComputeTensionDirectionSafe()
+    {
+        if (!useBottomSegmentDirectionForTension)
+            return ComputeEndToEndDirSafe();
+
+        if (x != null && x.Length >= 2 && bottomAttach != null)
+        {
+            Vector3 d = bottomAttach.position - x[x.Length - 2];
+            float m = d.magnitude;
+            if (m > 1e-6f) return d / m;
+        }
+
+        return ComputeEndToEndDirSafe();
+    }
+
+    float EstimateBottomSegmentConstraintTension(float substepDt)
+    {
+        if (!useBottomSegmentConstraintTension) return 0f;
+        if (lambdaDist == null || lambdaDist.Length == 0 || nodeCount < 2) return 0f;
+
+        int lastSegment = Mathf.Clamp(nodeCount - 2, 0, lambdaDist.Length - 1);
+        float lambda = lambdaDist[lastSegment];
+
+        // In this solver, a stretched segment accumulates negative lambda.
+        float tension = Mathf.Max(0f, -lambda) / Mathf.Max(1e-8f, substepDt * substepDt);
+        tension *= Mathf.Max(0f, bottomSegmentConstraintTensionScale);
+
+        float maxTension = Mathf.Max(0f, maxBottomSegmentConstraintTensionNewton);
+        if (maxTension > 0f)
+            tension = Mathf.Min(tension, maxTension);
+
+        return tension;
     }
 
     // -------------------------
@@ -1016,6 +1111,8 @@ public class CableXPBD : MonoBehaviour
     public float GetCableLengthMeters() => lastCableLength;
     public float GetTensionNewton() => lastTensionN;
     public float GetCurrentTensionNewton() => lastCurrentTensionN;
+    public float GetCableBuoyancyLoadNewton() => lastCableBuoyancyLoadN;
+    public float GetBottomSegmentTensionNewton() => lastBottomSegmentTensionN;
     public float GetStretchMeters() => lastStretch;
 
     public void ReelOutStep()
@@ -1069,6 +1166,8 @@ public class CableXPBD : MonoBehaviour
         axialDamping = Mathf.Max(0f, axialDamping);
         maxTensionNewton = Mathf.Max(0f, maxTensionNewton);
         maxTensionRate = Mathf.Max(0f, maxTensionRate);
+        bottomSegmentConstraintTensionScale = Mathf.Max(0f, bottomSegmentConstraintTensionScale);
+        maxBottomSegmentConstraintTensionNewton = Mathf.Max(0f, maxBottomSegmentConstraintTensionNewton);
 
         tensionSmoothingHz = Mathf.Max(0.1f, tensionSmoothingHz);
         directionSmoothingHz = Mathf.Max(0.1f, directionSmoothingHz);
@@ -1079,6 +1178,9 @@ public class CableXPBD : MonoBehaviour
         currentLoadBottomShare = Mathf.Clamp01(currentLoadBottomShare);
         currentTensionScale = Mathf.Max(0f, currentTensionScale);
         maxCurrentTensionNewton = Mathf.Max(0f, maxCurrentTensionNewton);
+        cableBuoyancyBottomShare = Mathf.Clamp01(cableBuoyancyBottomShare);
+        cableBuoyancyLoadScale = Mathf.Max(0f, cableBuoyancyLoadScale);
+        maxCableBuoyancyLoadNewton = Mathf.Max(0f, maxCableBuoyancyLoadNewton);
         winchStepMeters = Mathf.Max(0.1f, winchStepMeters);
 
         if (winchSpeed < 0f) winchSpeed = 0f;

@@ -30,6 +30,7 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
 
     [Header("Motion")]
     public bool animateInPlayMode = true;
+    public bool currentVelocityIsWorldSpace = true;
     public Vector3 currentVelocity = new Vector3(0.004f, 0.001f, -0.006f);
     public Vector2 randomDriftSpeed = new Vector2(0.001f, 0.01f);
     public Vector2 spinSpeedDeg = new Vector2(0.2f, 3f);
@@ -513,7 +514,7 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
             transform = go.transform,
             localPosition = position,
             baseLocalPosition = position,
-            drift = currentVelocity + RandomUnitVector(ref state) * Mathf.Lerp(randomDriftSpeed.x, randomDriftSpeed.y, Next01(ref state)),
+            drift = RandomUnitVector(ref state) * Mathf.Lerp(randomDriftSpeed.x, randomDriftSpeed.y, Next01(ref state)),
             spin = RandomUnitVector(ref state) * Mathf.Lerp(spinSpeedDeg.x, spinSpeedDeg.y, Next01(ref state)),
             bobPhase = Next01(ref state) * Mathf.PI * 2f,
             sonarRadius = Mathf.Max(0.02f, s * Mathf.Max(0.6f, aspect) * 0.9f),
@@ -533,13 +534,14 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
     {
         Vector3 half = HalfSize();
         float time = Time.time;
+        Vector3 currentLocalVelocity = GetCurrentLocalVelocity();
 
         for (int i = 0; i < items.Count; i++)
         {
             DebrisItem item = items[i];
             if (item.transform == null) continue;
 
-            item.localPosition += item.drift * Time.deltaTime;
+            item.localPosition += (currentLocalVelocity + item.drift) * Time.deltaTime;
             item.localPosition = fieldShape == FieldShape.Box
                 ? WrapBox(item.localPosition, half)
                 : WrapBox(item.localPosition, half);
@@ -550,6 +552,14 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
             item.transform.localPosition = ApplyWaterCull(animated);
             item.transform.Rotate(item.spin * Time.deltaTime, Space.Self);
         }
+    }
+
+    Vector3 GetCurrentLocalVelocity()
+    {
+        if (!currentVelocityIsWorldSpace)
+            return currentVelocity;
+
+        return transform.InverseTransformVector(currentVelocity);
     }
 
     Vector3 ApplyWaterCull(Vector3 local)

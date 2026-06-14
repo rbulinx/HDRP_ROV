@@ -96,6 +96,8 @@ public class ROVGamepadThrustController : MonoBehaviour
     public bool enableAltitudeHoldFeature = true;
     public bool altitudeHoldEnabled = false;
     public LayerMask altitudeTerrainMask = ~0;
+    public bool altitudeRayLocalDown = true;
+    public bool altitudeHoldForceAlongRay = true;
     public float altitudeRayLengthMeters = 30f;
     public float altitudeRayOriginUpOffset = 0.25f;
     public float altitudeHoldForceNPerM = 260f;
@@ -104,7 +106,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     public float altitudeHoldTrimMetersPerSecond = 0.35f;
     public float altitudeHoldManualDeadzone = 0.15f;
     public float altitudeHoldMinTargetMeters = 0.3f;
-    public float altitudeHoldMaxTargetMeters = 12f;
+    public float altitudeHoldMaxTargetMeters = 50f;
     [Range(2f, 60f)] public float altitudeMeasureHz = 15f;
 
     [Header("Auto Tether Pay")]
@@ -735,11 +737,12 @@ public class ROVGamepadThrustController : MonoBehaviour
         if (!enableAltitudeHoldFeature || !altitudeHoldEnabled || !_altitudeHoldHasGround || rb == null) return;
 
         float error = _altitudeHoldTargetMeters - _altitudeHoldMeasuredMeters;
-        float verticalVelocity = Vector3.Dot(rb.linearVelocity, Vector3.up);
+        Vector3 holdAxis = altitudeHoldForceAlongRay ? GetAltitudeUpDirection() : Vector3.up;
+        float verticalVelocity = Vector3.Dot(rb.linearVelocity, holdAxis);
         float force = error * Mathf.Max(0f, altitudeHoldForceNPerM) - verticalVelocity * Mathf.Max(0f, altitudeHoldDampingNPerMps);
         force = Mathf.Clamp(force, -Mathf.Max(0f, altitudeHoldMaxForceN), Mathf.Max(0f, altitudeHoldMaxForceN));
 
-        rb.AddForce(Vector3.up * (force * responseGain), fm);
+        rb.AddForce(holdAxis * (force * responseGain), fm);
     }
 
     void ToggleAutoTetherPay()
@@ -832,10 +835,12 @@ public class ROVGamepadThrustController : MonoBehaviour
         altitudeMeters = 0f;
         if (rb == null) return false;
 
-        Vector3 origin = rb.position + Vector3.up * Mathf.Max(0f, altitudeRayOriginUpOffset);
+        Vector3 upDir = GetAltitudeUpDirection();
+        Vector3 rayDir = -upDir;
+        Vector3 origin = rb.position + upDir * Mathf.Max(0f, altitudeRayOriginUpOffset);
         int hitCount = Physics.RaycastNonAlloc(
             origin,
-            Vector3.down,
+            rayDir,
             _altitudeRaycastHits,
             Mathf.Max(0.1f, altitudeRayLengthMeters + Mathf.Max(0f, altitudeRayOriginUpOffset)),
             altitudeTerrainMask,
@@ -866,6 +871,18 @@ public class ROVGamepadThrustController : MonoBehaviour
 
         altitudeMeters = Mathf.Max(0f, bestDistance - Mathf.Max(0f, altitudeRayOriginUpOffset));
         return true;
+    }
+
+    Vector3 GetAltitudeUpDirection()
+    {
+        if (!altitudeRayLocalDown)
+            return Vector3.up;
+
+        Vector3 up = transform.up;
+        if (up.sqrMagnitude <= 1e-8f)
+            return Vector3.up;
+
+        return up.normalized;
     }
 
     void AdjustLightIntensity(int stepCount)

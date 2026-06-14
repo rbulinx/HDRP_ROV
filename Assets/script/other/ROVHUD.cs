@@ -47,6 +47,10 @@ public class ROVHUD : MonoBehaviour
     public string autoTetherPayOnColor = "#66D9FF";
     public string autoTetherPayPayingColor = "#FF3333";
 
+    [Header("Attitude")]
+    public bool showAttitude = true;
+    public string attitudeLabel = "Attitude";
+
     [Header("Turn Count")]
     public bool showTurnCount = true;
     public bool showTotalTurnCount = false;
@@ -70,6 +74,8 @@ public class ROVHUD : MonoBehaviour
 
     MethodInfo miGetTensionNewton;
     MethodInfo miGetCurrentTensionNewton;
+    MethodInfo miGetCableBuoyancyLoadNewton;
+    MethodInfo miGetBottomSegmentTensionNewton;
     MethodInfo miGetCableLengthMeters;
     MethodInfo miGetStretchMeters;
 
@@ -216,6 +222,20 @@ public class ROVHUD : MonoBehaviour
             Type.EmptyTypes,
             null);
 
+        miGetCableBuoyancyLoadNewton = t.GetMethod(
+            "GetCableBuoyancyLoadNewton",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+
+        miGetBottomSegmentTensionNewton = t.GetMethod(
+            "GetBottomSegmentTensionNewton",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+
         miGetStretchMeters = t.GetMethod(
             "GetStretchMeters",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -304,6 +324,54 @@ public class ROVHUD : MonoBehaviour
         }
     }
 
+    bool TryGetCableBuoyancyLoad(out float cableBuoyancyLoadN)
+    {
+        cableBuoyancyLoadN = 0f;
+        if (sourceCable == null) return false;
+
+        if (sourceCable is CableXPBD xpbdCable)
+        {
+            cableBuoyancyLoadN = xpbdCable.GetCableBuoyancyLoadNewton();
+            return !float.IsNaN(cableBuoyancyLoadN) && !float.IsInfinity(cableBuoyancyLoadN);
+        }
+
+        if (miGetCableBuoyancyLoadNewton == null) return false;
+
+        try
+        {
+            cableBuoyancyLoadN = (float)miGetCableBuoyancyLoadNewton.Invoke(sourceCable, null);
+            return !float.IsNaN(cableBuoyancyLoadN) && !float.IsInfinity(cableBuoyancyLoadN);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    bool TryGetBottomSegmentTension(out float bottomSegmentTensionN)
+    {
+        bottomSegmentTensionN = 0f;
+        if (sourceCable == null) return false;
+
+        if (sourceCable is CableXPBD xpbdCable)
+        {
+            bottomSegmentTensionN = xpbdCable.GetBottomSegmentTensionNewton();
+            return !float.IsNaN(bottomSegmentTensionN) && !float.IsInfinity(bottomSegmentTensionN);
+        }
+
+        if (miGetBottomSegmentTensionNewton == null) return false;
+
+        try
+        {
+            bottomSegmentTensionN = (float)miGetBottomSegmentTensionNewton.Invoke(sourceCable, null);
+            return !float.IsNaN(bottomSegmentTensionN) && !float.IsInfinity(bottomSegmentTensionN);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     bool TryGetStretch(out float stretch)
     {
         stretch = 0f;
@@ -375,6 +443,12 @@ public class ROVHUD : MonoBehaviour
                     if (TryGetCurrentTension(out float currentTensionN))
                         cableDebugLines += $"\nCurrent T: {currentTensionN:0} N";
 
+                    if (TryGetCableBuoyancyLoad(out float cableBuoyancyLoadN))
+                        cableDebugLines += $"\nCable buoy: {cableBuoyancyLoadN:0} N";
+
+                    if (TryGetBottomSegmentTension(out float bottomSegmentTensionN))
+                        cableDebugLines += $"\nBottom seg T: {bottomSegmentTensionN:0} N";
+
                     if (TryGetStretch(out float debugStretch))
                         cableDebugLines += $"\nStretch: {debugStretch:0.000} m";
                 }
@@ -388,6 +462,7 @@ public class ROVHUD : MonoBehaviour
         hudText.text =
             $"Depth(Y): {depth:0.00} {depthUnit}\n" +
             $"Heading: {heading:0.0} deg" +
+            (showAttitude ? "\n" + BuildAttitudeLine() : "") +
             (showTurnCount ? "\n" + BuildTurnCountLine() : "") +
             (showCollisionCount ? "\n" + BuildCollisionCountLine() : "") +
             (showLightLevel ? "\n" + BuildLightLevelLine() : "") +
@@ -439,6 +514,21 @@ public class ROVHUD : MonoBehaviour
             line = $"{turnCountLabel}: {signedTurns:+0.00;-0.00;0.00} rev  Total: {turns:0.00}";
 
         return string.IsNullOrEmpty(color) ? line : $"<color={color}>{line}</color>";
+    }
+
+    string BuildAttitudeLine()
+    {
+        Vector3 euler = target.eulerAngles;
+        float pitch = NormalizeSignedAngle(euler.x);
+        float roll = NormalizeSignedAngle(euler.z);
+        return $"{attitudeLabel}: P {pitch:+0.0;-0.0;0.0} deg  R {roll:+0.0;-0.0;0.0} deg";
+    }
+
+    static float NormalizeSignedAngle(float deg)
+    {
+        while (deg > 180f) deg -= 360f;
+        while (deg < -180f) deg += 360f;
+        return deg;
     }
 
     string BuildCollisionCountLine()
