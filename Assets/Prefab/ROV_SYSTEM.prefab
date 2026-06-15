@@ -59,7 +59,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1344c3c82d62a2a41a3576d8abb8e3ea, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -121,7 +121,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ac4320ff877732f4bbd3a29ff8fc2ed8, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::GripperSimpleGamepad
   fingerL: {fileID: 814851568035920486}
   fingerR: {fileID: 7440828797323713222}
@@ -655,6 +655,7 @@ GameObject:
   - component: {fileID: 1665329003332217001}
   - component: {fileID: 2332813191845165006}
   - component: {fileID: 498160587961811903}
+  - component: {fileID: 337517296438362123}
   m_Layer: 0
   m_Name: ROV
   m_TagString: Untagged
@@ -965,6 +966,8 @@ MonoBehaviour:
   simulateInputLag: 1
   inputLagTimeConstantSeconds: 0.25
   inputDeviceLostGraceSeconds: 1
+  acceptMavlinkInput: 1
+  mavlinkInputTimeoutSeconds: 0.75
   linearDamping: 4
   angularDamping: 3
   enableHeadingLockFeature: 1
@@ -1043,6 +1046,27 @@ MonoBehaviour:
   ignoredCollisionNameKeywords:
   - Gripper
   - Finger
+--- !u!114 &337517296438362123
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 509625564804617805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f1f0f1cba9143b4a9aa6a9c220d7d71, type: 3}
+  m_Name: MavlinkUdpInputReceiver
+  m_EditorClassIdentifier: Assembly-CSharp::MavlinkUdpInputReceiver
+  listenPort: 14550
+  listenOnEnable: 1
+  rovController: {fileID: 498160587961811903}
+  autoFindRovController: 1
+  zMode: 0
+  invertSway: 0
+  invertHeave: 0
+  invertYaw: 0
+  logPackets: 0
 --- !u!1 &583407882409513066
 GameObject:
   m_ObjectHideFlags: 0

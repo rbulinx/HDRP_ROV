@@ -129,6 +129,12 @@ public class ROVGamepadThrustController : MonoBehaviour
     [Tooltip("Grace period [s] before clearing input when the selected device is briefly not reported by the Input System.")]
     [Range(0f, 1f)] public float inputDeviceLostGraceSeconds = 0.35f;
 
+    [Header("MAVLink Input")]
+    [Tooltip("Accept normalized MAVLink control input when no local manual input is active.")]
+    public bool acceptMavlinkInput = true;
+    [Tooltip("Seconds after the last MAVLink control message before input is treated as lost.")]
+    [Range(0.05f, 5f)] public float mavlinkInputTimeoutSeconds = 0.75f;
+
     [Header("Physics")]
     public float linearDamping = 4.0f;
     public float angularDamping = 3.0f;
@@ -292,6 +298,10 @@ public class ROVGamepadThrustController : MonoBehaviour
     Vector2 _cachedLookInput = Vector2.zero;
     float _cachedTiltInput = 0f;
     float _lastMoveInputReadTime = -999f;
+    Vector2 _mavlinkMoveInput = Vector2.zero;
+    Vector2 _mavlinkLookInput = Vector2.zero;
+    float _lastMavlinkInputTime = -999f;
+    bool _hasMavlinkInput;
     Gamepad _lastPreferredGamepad;
     Joystick _lastPreferredJoystick;
     float _lightIntensity;
@@ -1090,6 +1100,7 @@ public class ROVGamepadThrustController : MonoBehaviour
             controlResponseGainStep = 0.1f;
 
         inputLagTimeConstantSeconds = Mathf.Max(0f, inputLagTimeConstantSeconds);
+        mavlinkInputTimeoutSeconds = Mathf.Max(0.05f, mavlinkInputTimeoutSeconds);
 
         if (lightIntensityStep < 5000f)
             lightIntensityStep = 5000f;
@@ -1133,6 +1144,41 @@ public class ROVGamepadThrustController : MonoBehaviour
     public float ControlResponseGain
     {
         get { return controlResponseGain; }
+    }
+
+    public bool MavlinkInputActive
+    {
+        get { return IsMavlinkInputFresh(); }
+    }
+
+    public float LastMavlinkInputAgeSeconds
+    {
+        get { return _hasMavlinkInput ? Time.unscaledTime - _lastMavlinkInputTime : float.PositiveInfinity; }
+    }
+
+    public void SetMavlinkControlInput(float surge, float sway, float heave, float yaw)
+    {
+        _mavlinkMoveInput = new Vector2(
+            Mathf.Clamp(sway, -1f, 1f),
+            Mathf.Clamp(surge, -1f, 1f));
+        _mavlinkLookInput = new Vector2(
+            Mathf.Clamp(yaw, -1f, 1f),
+            Mathf.Clamp(heave, -1f, 1f));
+        _lastMavlinkInputTime = Time.unscaledTime;
+        _hasMavlinkInput = true;
+    }
+
+    public void SetMavlinkControlInput(Vector2 move, Vector2 look)
+    {
+        SetMavlinkControlInput(move.y, move.x, look.y, look.x);
+    }
+
+    public void ClearMavlinkControlInput()
+    {
+        _mavlinkMoveInput = Vector2.zero;
+        _mavlinkLookInput = Vector2.zero;
+        _hasMavlinkInput = false;
+        _lastMavlinkInputTime = -999f;
     }
 
     public bool HeadingLockEnabled
@@ -1503,6 +1549,9 @@ public class ROVGamepadThrustController : MonoBehaviour
             return true;
         }
 
+        if (TryReadMavlinkInput(out move, out look))
+            return true;
+
         if (pad != null)
         {
             move = padMove;
@@ -1527,6 +1576,29 @@ public class ROVGamepadThrustController : MonoBehaviour
         move = Vector2.zero;
         look = Vector2.zero;
         return false;
+    }
+
+    bool TryReadMavlinkInput(out Vector2 move, out Vector2 look)
+    {
+        if (IsMavlinkInputFresh())
+        {
+            move = _mavlinkMoveInput;
+            look = _mavlinkLookInput;
+            return true;
+        }
+
+        move = Vector2.zero;
+        look = Vector2.zero;
+        return false;
+    }
+
+    bool IsMavlinkInputFresh()
+    {
+        if (!acceptMavlinkInput || !_hasMavlinkInput)
+            return false;
+
+        float timeout = Mathf.Max(0.05f, mavlinkInputTimeoutSeconds);
+        return Time.unscaledTime - _lastMavlinkInputTime <= timeout;
     }
 
     float ReadTiltInput()
