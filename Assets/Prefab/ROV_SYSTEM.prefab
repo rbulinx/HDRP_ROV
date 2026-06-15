@@ -759,7 +759,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
+  m_Size: {x: 1.1267, y: 0.8467, z: 1.5233}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &6130816243917928624
 Rigidbody:
@@ -769,11 +769,11 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 509625564804617805}
   serializedVersion: 5
-  m_Mass: 60
+  m_Mass: 12
   m_LinearDamping: 0
   m_AngularDamping: 5
   m_CenterOfMass: {x: 0, y: -0.05, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaTensor: {x: 0.273, y: 0.323, z: 0.179}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
     serializedVersion: 2
@@ -782,7 +782,7 @@ Rigidbody:
     serializedVersion: 2
     m_Bits: 0
   m_ImplicitCom: 0
-  m_ImplicitTensor: 1
+  m_ImplicitTensor: 0
   m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 0
@@ -803,14 +803,15 @@ MonoBehaviour:
   centerOfMassLocalOffset: {x: 0, y: -0.05, z: 0}
   centerOfBuoyancyLocalOffset: {x: 0, y: 0.1, z: 0}
   useTrimmedRestAttitude: 1
-  restPitchDeg: 2
-  restRollDeg: -1
+  restPitchDeg: 0
+  restRollDeg: 0
   metacentricHeight: 0.12
+  useMetacentricRestoringTorque: 1
   setRigidbodyCenterOfMass: 1
   useUnityGravity: 1
   buoyancyScale: 1
-  verticalDampingNPerMps: 120
-  rollPitchAngularDamping: 0.25
+  verticalDampingNPerMps: 240
+  rollPitchAngularDamping: 0.9
 --- !u!114 &2332813191845165006
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -881,11 +882,58 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ROVGamepadThrustController
   mainCamera: {fileID: 5192427033007133494}
-  maxPlanarThrustN: 200
-  maxHeaveThrustN: 200
-  maxYawTorqueNm: 2
+  maxPlanarThrustN: 138
+  maxHeaveThrustN: 98
+  maxYawTorqueNm: 60
   useAccelerationMode: 0
   heaveWorldUp: 0
+  horizontalThrusters:
+  - name: Front Left
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: -0.17, y: -0.045, z: 0.2}
+    localDirection: {x: 0.70710677, y: 0, z: 0.70710677}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  - name: Front Right
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: 0.17, y: -0.045, z: 0.2}
+    localDirection: {x: 0.70710677, y: 0, z: -0.70710677}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  - name: Rear Left
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: -0.17, y: -0.045, z: -0.2}
+    localDirection: {x: 0.70710677, y: 0, z: -0.70710677}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  - name: Rear Right
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: 0.17, y: -0.045, z: -0.2}
+    localDirection: {x: 0.70710677, y: 0, z: 0.70710677}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  horizontalThrusterMixerRegularization: 0.001
+  horizontalThrusterYawPriority: 0.85
+  verticalThrusters:
+  - name: Left Vertical
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: -0.12, y: 0, z: 0}
+    localDirection: {x: 0, y: 1, z: 0}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  - name: Right Vertical
+    enabled: 1
+    mount: {fileID: 0}
+    localPosition: {x: 0.12, y: 0, z: 0}
+    localDirection: {x: 0, y: 1, z: 0}
+    maxForwardThrustN: 49
+    maxReverseThrustN: 49
+  verticalThrusterMixerRegularization: 0.001
   controlResponseGain: 1
   minControlResponseGain: 0.25
   maxControlResponseGain: 3
@@ -915,15 +963,15 @@ MonoBehaviour:
   enableKeyboardInput: 1
   enableLegacyInputSelectionOverlay: 0
   simulateInputLag: 1
-  inputLagTimeConstantSeconds: 0.6
+  inputLagTimeConstantSeconds: 0.25
   inputDeviceLostGraceSeconds: 1
-  linearDamping: 2
-  angularDamping: 2
+  linearDamping: 4
+  angularDamping: 3
   enableHeadingLockFeature: 1
   headingLockEnabled: 0
   headingLockTorqueNmPerDeg: 0.7
-  headingLockDampingNmPerDegPerSec: 0.25
-  headingLockMaxTorqueNm: 30
+  headingLockDampingNmPerDegPerSec: 0.5
+  headingLockMaxTorqueNm: 60
   enableAltitudeHoldFeature: 1
   altitudeHoldEnabled: 0
   altitudeTerrainMask:
@@ -934,7 +982,7 @@ MonoBehaviour:
   altitudeRayLengthMeters: 30
   altitudeRayOriginUpOffset: 0.25
   altitudeHoldForceNPerM: 260
-  altitudeHoldDampingNPerMps: 180
+  altitudeHoldDampingNPerMps: 360
   altitudeHoldMaxForceN: 120
   altitudeHoldTrimMetersPerSecond: 0.35
   altitudeHoldManualDeadzone: 0.15
@@ -960,7 +1008,7 @@ MonoBehaviour:
   invertTilt: 0
   keepUpright: 0
   uprightStrength: 20
-  uprightDamping: 6
+  uprightDamping: 12
   clampToWaterSurface: 1
   fallbackWaterSurfaceY: 0
   keepBelowSurfaceMeters: 0.05
@@ -972,13 +1020,13 @@ MonoBehaviour:
   waveFloatPoints: []
   autoGenerateWavePointsFromColliders: 1
   autoPointSpread: 0.9
-  waveTiltForceNPerM: 800
-  waveTiltDampNPerMS: 250
-  maxWaveForcePerPoint: 1200
+  waveTiltForceNPerM: 250
+  waveTiltDampNPerMS: 180
+  maxWaveForcePerPoint: 180
   enableWaveBob: 0
   waveDesiredSubmergeMeters: 0.1
   waveBobSpringNPerM: 200
-  waveBobDampNPerMS: 120
+  waveBobDampNPerMS: 240
   suppressBobWhileDiving: 1
   diveSuppressHeaveThreshold: -0.2
   waterSurface: {fileID: 0}
@@ -1385,6 +1433,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23c1ce4fb46143f46bc5cb5224c934f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData
+  m_Version: 9
+  m_ObsoleteRenderingPath: 0
+  m_ObsoleteFrameSettings:
+    overrides: 0
+    enableShadow: 0
+    enableContactShadows: 0
+    enableShadowMask: 0
+    enableSSR: 0
+    enableSSAO: 0
+    enableSubsurfaceScattering: 0
+    enableTransmission: 0
+    enableAtmosphericScattering: 0
+    enableVolumetrics: 0
+    enableReprojectionForVolumetrics: 0
+    enableLightLayers: 0
+    enableExposureControl: 1
+    diffuseGlobalDimmer: 0
+    specularGlobalDimmer: 0
+    shaderLitMode: 0
+    enableDepthPrepassWithDeferredRendering: 0
+    enableTransparentPrepass: 0
+    enableMotionVectors: 0
+    enableObjectMotionVectors: 0
+    enableDecals: 0
+    enableRoughRefraction: 0
+    enableTransparentPostpass: 0
+    enableDistortion: 0
+    enablePostprocess: 0
+    enableOpaqueObjects: 0
+    enableTransparentObjects: 0
+    enableRealtimePlanarReflection: 0
+    enableMSAA: 0
+    enableAsyncCompute: 0
+    runLightListAsync: 0
+    runSSRAsync: 0
+    runSSAOAsync: 0
+    runContactShadowsAsync: 0
+    runVolumeVoxelizationAsync: 0
+    lightLoopSettings:
+      overrides: 0
+      enableDeferredTileAndCluster: 0
+      enableComputeLightEvaluation: 0
+      enableComputeLightVariants: 0
+      enableComputeMaterialVariants: 0
+      enableFptlForForwardOpaque: 0
+      enableBigTilePrepass: 0
+      isFptlEnabled: 0
   clearColorMode: 0
   backgroundColorHDR: {r: 0.025, g: 0.07, b: 0.19, a: 0}
   clearDepth: 1
@@ -1465,53 +1560,6 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
-  m_Version: 9
-  m_ObsoleteRenderingPath: 0
-  m_ObsoleteFrameSettings:
-    overrides: 0
-    enableShadow: 0
-    enableContactShadows: 0
-    enableShadowMask: 0
-    enableSSR: 0
-    enableSSAO: 0
-    enableSubsurfaceScattering: 0
-    enableTransmission: 0
-    enableAtmosphericScattering: 0
-    enableVolumetrics: 0
-    enableReprojectionForVolumetrics: 0
-    enableLightLayers: 0
-    enableExposureControl: 1
-    diffuseGlobalDimmer: 0
-    specularGlobalDimmer: 0
-    shaderLitMode: 0
-    enableDepthPrepassWithDeferredRendering: 0
-    enableTransparentPrepass: 0
-    enableMotionVectors: 0
-    enableObjectMotionVectors: 0
-    enableDecals: 0
-    enableRoughRefraction: 0
-    enableTransparentPostpass: 0
-    enableDistortion: 0
-    enablePostprocess: 0
-    enableOpaqueObjects: 0
-    enableTransparentObjects: 0
-    enableRealtimePlanarReflection: 0
-    enableMSAA: 0
-    enableAsyncCompute: 0
-    runLightListAsync: 0
-    runSSRAsync: 0
-    runSSAOAsync: 0
-    runContactShadowsAsync: 0
-    runVolumeVoxelizationAsync: 0
-    lightLoopSettings:
-      overrides: 0
-      enableDeferredTileAndCluster: 0
-      enableComputeLightEvaluation: 0
-      enableComputeLightVariants: 0
-      enableComputeMaterialVariants: 0
-      enableFptlForForwardOpaque: 0
-      enableBigTilePrepass: 0
-      isFptlEnabled: 0
 --- !u!81 &3685658124614281435
 AudioListener:
   m_ObjectHideFlags: 0
@@ -1762,6 +1810,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23c1ce4fb46143f46bc5cb5224c934f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData
+  m_Version: 9
+  m_ObsoleteRenderingPath: 0
+  m_ObsoleteFrameSettings:
+    overrides: 0
+    enableShadow: 0
+    enableContactShadows: 0
+    enableShadowMask: 0
+    enableSSR: 0
+    enableSSAO: 0
+    enableSubsurfaceScattering: 0
+    enableTransmission: 0
+    enableAtmosphericScattering: 0
+    enableVolumetrics: 0
+    enableReprojectionForVolumetrics: 0
+    enableLightLayers: 0
+    enableExposureControl: 1
+    diffuseGlobalDimmer: 0
+    specularGlobalDimmer: 0
+    shaderLitMode: 0
+    enableDepthPrepassWithDeferredRendering: 0
+    enableTransparentPrepass: 0
+    enableMotionVectors: 0
+    enableObjectMotionVectors: 0
+    enableDecals: 0
+    enableRoughRefraction: 0
+    enableTransparentPostpass: 0
+    enableDistortion: 0
+    enablePostprocess: 0
+    enableOpaqueObjects: 0
+    enableTransparentObjects: 0
+    enableRealtimePlanarReflection: 0
+    enableMSAA: 0
+    enableAsyncCompute: 0
+    runLightListAsync: 0
+    runSSRAsync: 0
+    runSSAOAsync: 0
+    runContactShadowsAsync: 0
+    runVolumeVoxelizationAsync: 0
+    lightLoopSettings:
+      overrides: 0
+      enableDeferredTileAndCluster: 0
+      enableComputeLightEvaluation: 0
+      enableComputeLightVariants: 0
+      enableComputeMaterialVariants: 0
+      enableFptlForForwardOpaque: 0
+      enableBigTilePrepass: 0
+      isFptlEnabled: 0
   clearColorMode: 0
   backgroundColorHDR: {r: 0.025, g: 0.07, b: 0.19, a: 0}
   clearDepth: 1
@@ -1842,53 +1937,6 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
-  m_Version: 9
-  m_ObsoleteRenderingPath: 0
-  m_ObsoleteFrameSettings:
-    overrides: 0
-    enableShadow: 0
-    enableContactShadows: 0
-    enableShadowMask: 0
-    enableSSR: 0
-    enableSSAO: 0
-    enableSubsurfaceScattering: 0
-    enableTransmission: 0
-    enableAtmosphericScattering: 0
-    enableVolumetrics: 0
-    enableReprojectionForVolumetrics: 0
-    enableLightLayers: 0
-    enableExposureControl: 1
-    diffuseGlobalDimmer: 0
-    specularGlobalDimmer: 0
-    shaderLitMode: 0
-    enableDepthPrepassWithDeferredRendering: 0
-    enableTransparentPrepass: 0
-    enableMotionVectors: 0
-    enableObjectMotionVectors: 0
-    enableDecals: 0
-    enableRoughRefraction: 0
-    enableTransparentPostpass: 0
-    enableDistortion: 0
-    enablePostprocess: 0
-    enableOpaqueObjects: 0
-    enableTransparentObjects: 0
-    enableRealtimePlanarReflection: 0
-    enableMSAA: 0
-    enableAsyncCompute: 0
-    runLightListAsync: 0
-    runSSRAsync: 0
-    runSSAOAsync: 0
-    runContactShadowsAsync: 0
-    runVolumeVoxelizationAsync: 0
-    lightLoopSettings:
-      overrides: 0
-      enableDeferredTileAndCluster: 0
-      enableComputeLightEvaluation: 0
-      enableComputeLightVariants: 0
-      enableComputeMaterialVariants: 0
-      enableFptlForForwardOpaque: 0
-      enableBigTilePrepass: 0
-      isFptlEnabled: 0
 --- !u!1 &4854645619353392062
 GameObject:
   m_ObjectHideFlags: 0
@@ -2537,6 +2585,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23c1ce4fb46143f46bc5cb5224c934f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData
+  m_Version: 9
+  m_ObsoleteRenderingPath: 0
+  m_ObsoleteFrameSettings:
+    overrides: 0
+    enableShadow: 0
+    enableContactShadows: 0
+    enableShadowMask: 0
+    enableSSR: 0
+    enableSSAO: 0
+    enableSubsurfaceScattering: 0
+    enableTransmission: 0
+    enableAtmosphericScattering: 0
+    enableVolumetrics: 0
+    enableReprojectionForVolumetrics: 0
+    enableLightLayers: 0
+    enableExposureControl: 1
+    diffuseGlobalDimmer: 0
+    specularGlobalDimmer: 0
+    shaderLitMode: 0
+    enableDepthPrepassWithDeferredRendering: 0
+    enableTransparentPrepass: 0
+    enableMotionVectors: 0
+    enableObjectMotionVectors: 0
+    enableDecals: 0
+    enableRoughRefraction: 0
+    enableTransparentPostpass: 0
+    enableDistortion: 0
+    enablePostprocess: 0
+    enableOpaqueObjects: 0
+    enableTransparentObjects: 0
+    enableRealtimePlanarReflection: 0
+    enableMSAA: 0
+    enableAsyncCompute: 0
+    runLightListAsync: 0
+    runSSRAsync: 0
+    runSSAOAsync: 0
+    runContactShadowsAsync: 0
+    runVolumeVoxelizationAsync: 0
+    lightLoopSettings:
+      overrides: 0
+      enableDeferredTileAndCluster: 0
+      enableComputeLightEvaluation: 0
+      enableComputeLightVariants: 0
+      enableComputeMaterialVariants: 0
+      enableFptlForForwardOpaque: 0
+      enableBigTilePrepass: 0
+      isFptlEnabled: 0
   clearColorMode: 0
   backgroundColorHDR: {r: 0.025, g: 0.07, b: 0.19, a: 0}
   clearDepth: 1
@@ -2617,53 +2712,6 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
-  m_Version: 9
-  m_ObsoleteRenderingPath: 0
-  m_ObsoleteFrameSettings:
-    overrides: 0
-    enableShadow: 0
-    enableContactShadows: 0
-    enableShadowMask: 0
-    enableSSR: 0
-    enableSSAO: 0
-    enableSubsurfaceScattering: 0
-    enableTransmission: 0
-    enableAtmosphericScattering: 0
-    enableVolumetrics: 0
-    enableReprojectionForVolumetrics: 0
-    enableLightLayers: 0
-    enableExposureControl: 1
-    diffuseGlobalDimmer: 0
-    specularGlobalDimmer: 0
-    shaderLitMode: 0
-    enableDepthPrepassWithDeferredRendering: 0
-    enableTransparentPrepass: 0
-    enableMotionVectors: 0
-    enableObjectMotionVectors: 0
-    enableDecals: 0
-    enableRoughRefraction: 0
-    enableTransparentPostpass: 0
-    enableDistortion: 0
-    enablePostprocess: 0
-    enableOpaqueObjects: 0
-    enableTransparentObjects: 0
-    enableRealtimePlanarReflection: 0
-    enableMSAA: 0
-    enableAsyncCompute: 0
-    runLightListAsync: 0
-    runSSRAsync: 0
-    runSSAOAsync: 0
-    runContactShadowsAsync: 0
-    runVolumeVoxelizationAsync: 0
-    lightLoopSettings:
-      overrides: 0
-      enableDeferredTileAndCluster: 0
-      enableComputeLightEvaluation: 0
-      enableComputeLightVariants: 0
-      enableComputeMaterialVariants: 0
-      enableFptlForForwardOpaque: 0
-      enableBigTilePrepass: 0
-      isFptlEnabled: 0
 --- !u!1 &5643870856334758306
 GameObject:
   m_ObjectHideFlags: 0
@@ -2902,6 +2950,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23c1ce4fb46143f46bc5cb5224c934f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData
+  m_Version: 9
+  m_ObsoleteRenderingPath: 0
+  m_ObsoleteFrameSettings:
+    overrides: 0
+    enableShadow: 0
+    enableContactShadows: 0
+    enableShadowMask: 0
+    enableSSR: 0
+    enableSSAO: 0
+    enableSubsurfaceScattering: 0
+    enableTransmission: 0
+    enableAtmosphericScattering: 0
+    enableVolumetrics: 0
+    enableReprojectionForVolumetrics: 0
+    enableLightLayers: 0
+    enableExposureControl: 1
+    diffuseGlobalDimmer: 0
+    specularGlobalDimmer: 0
+    shaderLitMode: 0
+    enableDepthPrepassWithDeferredRendering: 0
+    enableTransparentPrepass: 0
+    enableMotionVectors: 0
+    enableObjectMotionVectors: 0
+    enableDecals: 0
+    enableRoughRefraction: 0
+    enableTransparentPostpass: 0
+    enableDistortion: 0
+    enablePostprocess: 0
+    enableOpaqueObjects: 0
+    enableTransparentObjects: 0
+    enableRealtimePlanarReflection: 0
+    enableMSAA: 0
+    enableAsyncCompute: 0
+    runLightListAsync: 0
+    runSSRAsync: 0
+    runSSAOAsync: 0
+    runContactShadowsAsync: 0
+    runVolumeVoxelizationAsync: 0
+    lightLoopSettings:
+      overrides: 0
+      enableDeferredTileAndCluster: 0
+      enableComputeLightEvaluation: 0
+      enableComputeLightVariants: 0
+      enableComputeMaterialVariants: 0
+      enableFptlForForwardOpaque: 0
+      enableBigTilePrepass: 0
+      isFptlEnabled: 0
   clearColorMode: 0
   backgroundColorHDR: {r: 0.025, g: 0.07, b: 0.19, a: 0}
   clearDepth: 1
@@ -2982,53 +3077,6 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
-  m_Version: 9
-  m_ObsoleteRenderingPath: 0
-  m_ObsoleteFrameSettings:
-    overrides: 0
-    enableShadow: 0
-    enableContactShadows: 0
-    enableShadowMask: 0
-    enableSSR: 0
-    enableSSAO: 0
-    enableSubsurfaceScattering: 0
-    enableTransmission: 0
-    enableAtmosphericScattering: 0
-    enableVolumetrics: 0
-    enableReprojectionForVolumetrics: 0
-    enableLightLayers: 0
-    enableExposureControl: 1
-    diffuseGlobalDimmer: 0
-    specularGlobalDimmer: 0
-    shaderLitMode: 0
-    enableDepthPrepassWithDeferredRendering: 0
-    enableTransparentPrepass: 0
-    enableMotionVectors: 0
-    enableObjectMotionVectors: 0
-    enableDecals: 0
-    enableRoughRefraction: 0
-    enableTransparentPostpass: 0
-    enableDistortion: 0
-    enablePostprocess: 0
-    enableOpaqueObjects: 0
-    enableTransparentObjects: 0
-    enableRealtimePlanarReflection: 0
-    enableMSAA: 0
-    enableAsyncCompute: 0
-    runLightListAsync: 0
-    runSSRAsync: 0
-    runSSAOAsync: 0
-    runContactShadowsAsync: 0
-    runVolumeVoxelizationAsync: 0
-    lightLoopSettings:
-      overrides: 0
-      enableDeferredTileAndCluster: 0
-      enableComputeLightEvaluation: 0
-      enableComputeLightVariants: 0
-      enableComputeMaterialVariants: 0
-      enableFptlForForwardOpaque: 0
-      enableBigTilePrepass: 0
-      isFptlEnabled: 0
 --- !u!1 &6666466442753463070
 GameObject:
   m_ObjectHideFlags: 0
@@ -3469,30 +3517,28 @@ MonoBehaviour:
   waterSurfaceYOffset: 0
   disableCurrentAboveSurface: 1
   massPerNode: 0.2
-  linearDamping: 0.05
-  buoyancyFactor: 0.8
-  dragLinear: 2
-  dragQuadratic: 0
+  linearDamping: 0.1
+  buoyancyFactor: 1
+  dragLinearAlong: 0.01
+  dragLinearAcross: 1.2
+  dragQuadraticAlong: 0
+  dragQuadraticAcross: 0
   currentVelocity: {x: 0, y: 0, z: 0}
   applyCurrentLoadToBottom: 0
-  currentLoadBottomShare: 0.18
-  currentTensionScale: 0.45
   maxCurrentTensionNewton: 500
   applyCableBuoyancyLoadToBottom: 0
-  cableBuoyancyBottomShare: 0.35
-  cableBuoyancyLoadScale: 1
   maxCableBuoyancyLoadNewton: 300
   substeps: 3
   solverIterations: 12
-  constraintVelocityDamping: 0.15
+  constraintVelocityDamping: 0.3
   enableDistanceConstraint: 1
   distanceCompliance: 0
   useEAForDistanceCompliance: 1
-  axialRigidityEA: 2000000
+  axialRigidityEA: 200000
   enableBending: 1
   bendingCompliance: 0
   usePhysicalEI: 1
-  bendingRigidityEI: 20
+  bendingRigidityEI: 1
   bendingMaxCorrection: 0
   enableCollision: 1
   useCapsuleCollision: 1
@@ -3505,25 +3551,24 @@ MonoBehaviour:
   ignoreCollisionSegmentsNearTopAnchor: 2
   ignoreCollisionSegmentsNearBottomAttach: 2
   maxCollisionCorrection: 0.02
-  collisionVelocityDamping: 0.35
+  collisionVelocityDamping: 0.7
   tensionMode: 1
-  endToEndStiffnessNPerM: 9000
-  endToEndDampingNPerMps: 1300
+  endToEndStiffnessNPerM: 300
+  endToEndDampingNPerMps: 1000
   reelInSpringScale: 0.25
   applyTensionToBottom: 1
   bottomRigidbody: {fileID: 0}
-  slackMeters: 0.02
+  slackMeters: 0.1
   requireNearTautMeters: 0.2
-  axialDamping: 500
-  maxTensionNewton: 1100
-  maxTensionRate: 3000
+  axialDamping: 600
+  maxTensionNewton: 400
+  maxTensionRate: 800
   applyForceAtAttachPoint: 1
   useBottomSegmentDirectionForTension: 1
-  useBottomSegmentConstraintTension: 1
-  bottomSegmentConstraintTensionScale: 0.25
-  maxBottomSegmentConstraintTensionNewton: 500
-  tensionSmoothingHz: 8
-  directionSmoothingHz: 10
+  useBottomSegmentConstraintTension: 0
+  maxBottomSegmentConstraintTensionNewton: 250
+  tensionSmoothingHz: 3
+  directionSmoothingHz: 2
   renderLine: 1
   drawGizmos: 0
 --- !u!1 &7949318509686506264

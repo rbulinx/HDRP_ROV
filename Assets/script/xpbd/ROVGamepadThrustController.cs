@@ -5,7 +5,6 @@ using UnityEngine.UI;
 
 // HDRP Water
 using UnityEngine.Rendering.HighDefinition;
-using Unity.Mathematics;
 
 [RequireComponent(typeof(Rigidbody))]
 public class ROVGamepadThrustController : MonoBehaviour
@@ -34,15 +33,64 @@ public class ROVGamepadThrustController : MonoBehaviour
         Keyboard
     }
 
+    [System.Serializable]
+    public class HorizontalThruster
+    {
+        public string name = "Horizontal Thruster";
+        public bool enabled = true;
+        [Tooltip("Optional. If assigned, position uses this Transform and direction uses its local forward axis.")]
+        public Transform mount;
+        public Vector3 localPosition = Vector3.zero;
+        public Vector3 localDirection = Vector3.forward;
+        public float maxForwardThrustN = 49f;
+        public float maxReverseThrustN = 49f;
+    }
+
+    [System.Serializable]
+    public class VerticalThruster
+    {
+        public string name = "Vertical Thruster";
+        public bool enabled = true;
+        [Tooltip("Optional. If assigned, position uses this Transform and direction uses its local forward axis.")]
+        public Transform mount;
+        public Vector3 localPosition = Vector3.zero;
+        public Vector3 localDirection = Vector3.up;
+        public float maxForwardThrustN = 49f;
+        public float maxReverseThrustN = 49f;
+    }
+
     [Header("References (optional)")]
     public Transform mainCamera;
 
     [Header("Thrust (Force)")]
     public float maxPlanarThrustN = 80f;
     public float maxHeaveThrustN = 80f;
-    public float maxYawTorqueNm = 25f;
+    public float maxYawTorqueNm = 60f;
     public bool useAccelerationMode = false;
     public bool heaveWorldUp = true;
+
+    [Header("Physical Horizontal Thrusters")]
+    public HorizontalThruster[] horizontalThrusters = new HorizontalThruster[]
+    {
+        new HorizontalThruster { name = "Front Left",  localPosition = new Vector3(-0.17f, -0.045f,  0.20f), localDirection = new Vector3( 1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+        new HorizontalThruster { name = "Front Right", localPosition = new Vector3( 0.17f, -0.045f,  0.20f), localDirection = new Vector3( 1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+        new HorizontalThruster { name = "Rear Left",   localPosition = new Vector3(-0.17f, -0.045f, -0.20f), localDirection = new Vector3( 1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+        new HorizontalThruster { name = "Rear Right",  localPosition = new Vector3( 0.17f, -0.045f, -0.20f), localDirection = new Vector3( 1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+    };
+    [Tooltip("Small damping for the thruster mixer. Increase if thrust allocation jitters near singular layouts.")]
+    public float horizontalThrusterMixerRegularization = 0.001f;
+    [Range(0f, 1f)]
+    [Tooltip("When thrusters saturate, 0 scales translation/yaw equally; 1 preserves yaw first and reduces translation.")]
+    public float horizontalThrusterYawPriority = 0.65f;
+
+    [Header("Physical Vertical Thrusters")]
+    public VerticalThruster[] verticalThrusters = new VerticalThruster[]
+    {
+        new VerticalThruster { name = "Left Vertical",  localPosition = new Vector3(-0.12f, 0f, 0f), localDirection = Vector3.up, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+        new VerticalThruster { name = "Right Vertical", localPosition = new Vector3( 0.12f, 0f, 0f), localDirection = Vector3.up, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+    };
+    [Tooltip("Small damping for the vertical thruster force mixer.")]
+    public float verticalThrusterMixerRegularization = 0.001f;
 
     [Header("Control Gain")]
     [Tooltip("機体操作の反応倍率。推力・上下推力・ヨーに掛かります。")]
@@ -82,15 +130,15 @@ public class ROVGamepadThrustController : MonoBehaviour
     [Range(0f, 1f)] public float inputDeviceLostGraceSeconds = 0.35f;
 
     [Header("Physics")]
-    public float linearDamping = 2.0f;
-    public float angularDamping = 2.0f;
+    public float linearDamping = 4.0f;
+    public float angularDamping = 3.0f;
 
     [Header("Heading Lock")]
     public bool enableHeadingLockFeature = true;
     public bool headingLockEnabled = false;
     public float headingLockTorqueNmPerDeg = 0.7f;
-    public float headingLockDampingNmPerDegPerSec = 0.25f;
-    public float headingLockMaxTorqueNm = 30f;
+    public float headingLockDampingNmPerDegPerSec = 0.5f;
+    public float headingLockMaxTorqueNm = 60f;
 
     [Header("Altitude Hold / Terrain Follow")]
     public bool enableAltitudeHoldFeature = true;
@@ -101,7 +149,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     public float altitudeRayLengthMeters = 30f;
     public float altitudeRayOriginUpOffset = 0.25f;
     public float altitudeHoldForceNPerM = 260f;
-    public float altitudeHoldDampingNPerMps = 180f;
+    public float altitudeHoldDampingNPerMps = 360f;
     public float altitudeHoldMaxForceN = 120f;
     public float altitudeHoldTrimMetersPerSecond = 0.35f;
     public float altitudeHoldManualDeadzone = 0.15f;
@@ -137,7 +185,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     [Header("Upright Stabilizer")]
     public bool keepUpright = true;
     public float uprightStrength = 20f;
-    public float uprightDamping = 6f;
+    public float uprightDamping = 12f;
 
     // =========================================================
     [Header("Water Surface Clamp (No Breach)")]
@@ -177,13 +225,13 @@ public class ROVGamepadThrustController : MonoBehaviour
 
     [Header("Wave Rocking: Tilt (no net vertical hold)")]
     [Tooltip("波面の凹凸差でロール/ピッチを作る強さ[N/m]（合計上下力はほぼ0）")]
-    public float waveTiltForceNPerM = 800f;
+    public float waveTiltForceNPerM = 250f;
 
     [Tooltip("Tiltの上下速度減衰[N/(m/s)]")]
-    public float waveTiltDampNPerMS = 250f;
+    public float waveTiltDampNPerMS = 180f;
 
     [Tooltip("1点あたり最大力[N]")]
-    public float maxWaveForcePerPoint = 1200f;
+    public float maxWaveForcePerPoint = 180f;
 
     [Header("Wave Rocking: Optional Bob (small vertical)")]
     [Tooltip("上下ボブを有効化（小さめ推奨）。TiltだけならOFFでもOK")]
@@ -196,7 +244,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     public float waveBobSpringNPerM = 200f;
 
     [Tooltip("ボブ減衰[N/(m/s)]")]
-    public float waveBobDampNPerMS = 120f;
+    public float waveBobDampNPerMS = 240f;
 
     [Tooltip("潜航入力（下向き）中はボブを弱める")]
     public bool suppressBobWhileDiving = true;
@@ -258,6 +306,24 @@ public class ROVGamepadThrustController : MonoBehaviour
     readonly RaycastHit[] _altitudeRaycastHits = new RaycastHit[8];
     float _autoPayBaseTargetLength;
     float _autoPayLastTensionN;
+    HorizontalThruster[] _thrusterScratchActive;
+    Vector3[] _thrusterScratchPositions;
+    Vector3[] _thrusterScratchDirections;
+    float[] _thrusterScratchForceX;
+    float[] _thrusterScratchForceZ;
+    float[] _thrusterScratchTorqueY;
+    float[] _thrusterScratchCommand;
+    float[] _thrusterScratchPlanarCommand;
+    float[] _thrusterScratchYawCommand;
+    bool _warnedInvalidHorizontalThrusters;
+    VerticalThruster[] _verticalThrusterScratchActive;
+    Vector3[] _verticalThrusterScratchPositions;
+    Vector3[] _verticalThrusterScratchDirections;
+    float[] _verticalThrusterScratchForceX;
+    float[] _verticalThrusterScratchForceY;
+    float[] _verticalThrusterScratchForceZ;
+    float[] _verticalThrusterScratchCommand;
+    bool _warnedInvalidVerticalThrusters;
     bool _autoPayIsPaying;
 
     void Awake()
@@ -381,15 +447,10 @@ public class ROVGamepadThrustController : MonoBehaviour
             ? Vector3.up * (heave * maxHeaveThrustN * responseGain)
             : transform.up * (heave * maxHeaveThrustN * responseGain);
 
-        Vector3 worldForce = transform.TransformDirection(localForce) + heaveForce;
-
         ForceMode fm = useAccelerationMode ? ForceMode.Acceleration : ForceMode.Force;
-        rb.AddForce(worldForce, fm);
-        ApplyAltitudeHold(fm, responseGain);
-
-        // Yaw
-        rb.AddTorque(transform.up * (yaw * maxYawTorqueNm * responseGain), fm);
-        ApplyHeadingLock(fm, responseGain);
+        float yawTorqueNm = yaw * maxYawTorqueNm * responseGain + ComputeHeadingLockTorqueNm() * responseGain;
+        ApplyPhysicalHorizontalThrusters(localForce, yawTorqueNm, fm);
+        ApplyPhysicalVerticalThrusters(heaveForce + ComputeAltitudeHoldForce(responseGain), fm);
 
         ApplyAutoTetherPay();
         ApplyCurrentForce();
@@ -655,9 +716,9 @@ public class ROVGamepadThrustController : MonoBehaviour
         Debug.Log($"[ROVInput] Heading lock {(headingLockEnabled ? "ON" : "OFF")} target={_headingLockTargetDeg:0.0} deg");
     }
 
-    void ApplyHeadingLock(ForceMode fm, float responseGain)
+    float ComputeHeadingLockTorqueNm()
     {
-        if (!enableHeadingLockFeature || !headingLockEnabled || rb == null) return;
+        if (!enableHeadingLockFeature || !headingLockEnabled || rb == null) return 0f;
 
         float currentHeading = rb.rotation.eulerAngles.y;
         _headingLockErrorDeg = Mathf.DeltaAngle(currentHeading, _headingLockTargetDeg);
@@ -668,7 +729,7 @@ public class ROVGamepadThrustController : MonoBehaviour
             yawRateDegPerSec * Mathf.Max(0f, headingLockDampingNmPerDegPerSec);
 
         torque = Mathf.Clamp(torque, -Mathf.Max(0f, headingLockMaxTorqueNm), Mathf.Max(0f, headingLockMaxTorqueNm));
-        rb.AddTorque(Vector3.up * (torque * responseGain), fm);
+        return torque;
     }
 
     void ToggleAltitudeHold()
@@ -732,9 +793,10 @@ public class ROVGamepadThrustController : MonoBehaviour
             Mathf.Max(altitudeHoldMinTargetMeters, altitudeHoldMaxTargetMeters));
     }
 
-    void ApplyAltitudeHold(ForceMode fm, float responseGain)
+    Vector3 ComputeAltitudeHoldForce(float responseGain)
     {
-        if (!enableAltitudeHoldFeature || !altitudeHoldEnabled || !_altitudeHoldHasGround || rb == null) return;
+        if (!enableAltitudeHoldFeature || !altitudeHoldEnabled || !_altitudeHoldHasGround || rb == null)
+            return Vector3.zero;
 
         float error = _altitudeHoldTargetMeters - _altitudeHoldMeasuredMeters;
         Vector3 holdAxis = altitudeHoldForceAlongRay ? GetAltitudeUpDirection() : Vector3.up;
@@ -742,7 +804,7 @@ public class ROVGamepadThrustController : MonoBehaviour
         float force = error * Mathf.Max(0f, altitudeHoldForceNPerM) - verticalVelocity * Mathf.Max(0f, altitudeHoldDampingNPerMps);
         force = Mathf.Clamp(force, -Mathf.Max(0f, altitudeHoldMaxForceN), Mathf.Max(0f, altitudeHoldMaxForceN));
 
-        rb.AddForce(holdAxis * (force * responseGain), fm);
+        return holdAxis * (force * responseGain);
     }
 
     void ToggleAutoTetherPay()
@@ -1304,7 +1366,7 @@ public class ROVGamepadThrustController : MonoBehaviour
             if (_waveSamplePointsWorld == null || _waveSamplePointsWorld.Length != n)
                 _waveSamplePointsWorld = new Vector3[n];
             for (int i = 0; i < n; i++)
-                _waveSamplePointsWorld[i] = transform.TransformPoint(_autoLocalPoints[i]);
+                _waveSamplePointsWorld[i] = TransformLocalPointWithoutScale(_autoLocalPoints[i]);
             return _waveSamplePointsWorld;
         }
 
@@ -1332,7 +1394,7 @@ public class ROVGamepadThrustController : MonoBehaviour
         Bounds b = cols[0].bounds;
         for (int i = 1; i < cols.Length; i++) b.Encapsulate(cols[i].bounds);
 
-        Vector3 centerLocal = transform.InverseTransformPoint(b.center);
+        Vector3 centerLocal = InverseTransformPointWithoutScale(b.center);
         Vector3 ext = b.extents * autoPointSpread;
 
         _autoLocalPoints = new Vector3[4];
@@ -1874,6 +1936,425 @@ public class ROVGamepadThrustController : MonoBehaviour
         rect.sizeDelta = size;
     }
 
+    void ApplyPhysicalHorizontalThrusters(Vector3 desiredLocalForce, float desiredYawTorqueNm, ForceMode forceMode)
+    {
+        if (!TryBuildHorizontalThrusterMixer(
+                out HorizontalThruster[] thrusters,
+                out Vector3[] localPositions,
+                out Vector3[] localDirections,
+                out float[] forceX,
+                out float[] forceZ,
+                out float[] torqueY,
+                out int count))
+        {
+            WarnInvalidHorizontalThrustersOnce();
+            return;
+        }
+
+        float b0 = desiredLocalForce.x;
+        float b1 = desiredLocalForce.z;
+        float b2 = desiredYawTorqueNm;
+
+        float m00 = Mathf.Max(0f, horizontalThrusterMixerRegularization);
+        float m01 = 0f;
+        float m02 = 0f;
+        float m11 = Mathf.Max(0f, horizontalThrusterMixerRegularization);
+        float m12 = 0f;
+        float m22 = Mathf.Max(0f, horizontalThrusterMixerRegularization);
+
+        for (int i = 0; i < count; i++)
+        {
+            float ax = forceX[i];
+            float az = forceZ[i];
+            float ay = torqueY[i];
+
+            m00 += ax * ax;
+            m01 += ax * az;
+            m02 += ax * ay;
+            m11 += az * az;
+            m12 += az * ay;
+            m22 += ay * ay;
+        }
+
+        if (!SolveSymmetric3x3(m00, m01, m02, m11, m12, m22, b0, b1, 0f, out Vector3 planarMixer) ||
+            !SolveSymmetric3x3(m00, m01, m02, m11, m12, m22, 0f, 0f, b2, out Vector3 yawMixer))
+        {
+            WarnInvalidHorizontalThrustersOnce();
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            _thrusterScratchPlanarCommand[i] =
+                forceX[i] * planarMixer.x + forceZ[i] * planarMixer.y + torqueY[i] * planarMixer.z;
+            _thrusterScratchYawCommand[i] =
+                forceX[i] * yawMixer.x + forceZ[i] * yawMixer.y + torqueY[i] * yawMixer.z;
+            _thrusterScratchCommand[i] = _thrusterScratchPlanarCommand[i] + _thrusterScratchYawCommand[i];
+        }
+
+        float uniformScale = GetCommonThrusterScale(thrusters, _thrusterScratchCommand, count);
+        float yawScale = GetCommonThrusterScale(thrusters, _thrusterScratchYawCommand, count);
+        float planarScale = GetPlanarScaleWithYawReserved(thrusters, _thrusterScratchPlanarCommand, _thrusterScratchYawCommand, yawScale, count);
+        float yawPriority = Mathf.Clamp01(horizontalThrusterYawPriority);
+
+        for (int i = 0; i < count; i++)
+        {
+            float uniformThrust = _thrusterScratchCommand[i] * uniformScale;
+            float yawPriorityThrust =
+                _thrusterScratchYawCommand[i] * yawScale +
+                _thrusterScratchPlanarCommand[i] * planarScale;
+            float thrust = Mathf.Lerp(uniformThrust, yawPriorityThrust, yawPriority);
+            if (Mathf.Abs(thrust) <= 1e-4f)
+                continue;
+
+            Vector3 worldPosition = TransformLocalPointWithoutScale(localPositions[i]);
+            Vector3 worldDirection = transform.TransformDirection(localDirections[i]).normalized;
+            rb.AddForceAtPosition(worldDirection * thrust, worldPosition, forceMode);
+        }
+    }
+
+    bool TryBuildHorizontalThrusterMixer(
+        out HorizontalThruster[] activeThrusters,
+        out Vector3[] localPositions,
+        out Vector3[] localDirections,
+        out float[] forceX,
+        out float[] forceZ,
+        out float[] torqueY,
+        out int count)
+    {
+        int capacity = horizontalThrusters != null ? horizontalThrusters.Length : 0;
+        EnsureHorizontalThrusterScratchCapacity(capacity);
+
+        activeThrusters = _thrusterScratchActive;
+        localPositions = _thrusterScratchPositions;
+        localDirections = _thrusterScratchDirections;
+        forceX = _thrusterScratchForceX;
+        forceZ = _thrusterScratchForceZ;
+        torqueY = _thrusterScratchTorqueY;
+        count = 0;
+
+        if (capacity == 0)
+            return false;
+
+        for (int i = 0; i < horizontalThrusters.Length; i++)
+        {
+            HorizontalThruster thruster = horizontalThrusters[i];
+            if (thruster == null || !thruster.enabled)
+                continue;
+
+            Vector3 localPosition;
+            Vector3 localDirection;
+            if (thruster.mount != null)
+            {
+                localPosition = InverseTransformPointWithoutScale(thruster.mount.position);
+                localDirection = transform.InverseTransformDirection(thruster.mount.forward);
+            }
+            else
+            {
+                localPosition = thruster.localPosition;
+                localDirection = thruster.localDirection;
+            }
+
+            localDirection.y = 0f;
+            if (localDirection.sqrMagnitude <= 1e-8f)
+                continue;
+
+            localDirection.Normalize();
+
+            activeThrusters[count] = thruster;
+            localPositions[count] = localPosition;
+            localDirections[count] = localDirection;
+            forceX[count] = localDirection.x;
+            forceZ[count] = localDirection.z;
+            torqueY[count] = Vector3.Cross(localPosition, localDirection).y;
+            count++;
+        }
+
+        return count > 0;
+    }
+
+    void WarnInvalidHorizontalThrustersOnce()
+    {
+        if (_warnedInvalidHorizontalThrusters)
+            return;
+
+        _warnedInvalidHorizontalThrusters = true;
+        Debug.LogWarning("[ROVInput] Horizontal thruster setup is empty or singular. Horizontal force/yaw are disabled until thruster positions and directions are valid.");
+    }
+
+    void ApplyPhysicalVerticalThrusters(Vector3 desiredWorldForce, ForceMode forceMode)
+    {
+        if (desiredWorldForce.sqrMagnitude <= 1e-8f)
+            return;
+
+        if (!TryBuildVerticalThrusterMixer(
+                out VerticalThruster[] thrusters,
+                out Vector3[] localPositions,
+                out Vector3[] localDirections,
+                out float[] forceX,
+                out float[] forceY,
+                out float[] forceZ,
+                out int count))
+        {
+            WarnInvalidVerticalThrustersOnce();
+            return;
+        }
+
+        Vector3 desiredLocalForce = transform.InverseTransformDirection(desiredWorldForce);
+
+        float m00 = Mathf.Max(0f, verticalThrusterMixerRegularization);
+        float m01 = 0f;
+        float m02 = 0f;
+        float m11 = Mathf.Max(0f, verticalThrusterMixerRegularization);
+        float m12 = 0f;
+        float m22 = Mathf.Max(0f, verticalThrusterMixerRegularization);
+
+        for (int i = 0; i < count; i++)
+        {
+            float ax = forceX[i];
+            float ay = forceY[i];
+            float az = forceZ[i];
+
+            m00 += ax * ax;
+            m01 += ax * ay;
+            m02 += ax * az;
+            m11 += ay * ay;
+            m12 += ay * az;
+            m22 += az * az;
+        }
+
+        if (!SolveSymmetric3x3(
+                m00, m01, m02,
+                m11, m12,
+                m22,
+                desiredLocalForce.x, desiredLocalForce.y, desiredLocalForce.z,
+                out Vector3 mixer))
+        {
+            WarnInvalidVerticalThrustersOnce();
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            _verticalThrusterScratchCommand[i] =
+                forceX[i] * mixer.x + forceY[i] * mixer.y + forceZ[i] * mixer.z;
+        }
+
+        float commandScale = GetCommonVerticalThrusterScale(thrusters, _verticalThrusterScratchCommand, count);
+        for (int i = 0; i < count; i++)
+        {
+            float thrust = _verticalThrusterScratchCommand[i] * commandScale;
+            if (Mathf.Abs(thrust) <= 1e-4f)
+                continue;
+
+            Vector3 worldPosition = TransformLocalPointWithoutScale(localPositions[i]);
+            Vector3 worldDirection = transform.TransformDirection(localDirections[i]).normalized;
+            rb.AddForceAtPosition(worldDirection * thrust, worldPosition, forceMode);
+        }
+    }
+
+    bool TryBuildVerticalThrusterMixer(
+        out VerticalThruster[] activeThrusters,
+        out Vector3[] localPositions,
+        out Vector3[] localDirections,
+        out float[] forceX,
+        out float[] forceY,
+        out float[] forceZ,
+        out int count)
+    {
+        int capacity = verticalThrusters != null ? verticalThrusters.Length : 0;
+        EnsureVerticalThrusterScratchCapacity(capacity);
+
+        activeThrusters = _verticalThrusterScratchActive;
+        localPositions = _verticalThrusterScratchPositions;
+        localDirections = _verticalThrusterScratchDirections;
+        forceX = _verticalThrusterScratchForceX;
+        forceY = _verticalThrusterScratchForceY;
+        forceZ = _verticalThrusterScratchForceZ;
+        count = 0;
+
+        if (capacity == 0)
+            return false;
+
+        for (int i = 0; i < verticalThrusters.Length; i++)
+        {
+            VerticalThruster thruster = verticalThrusters[i];
+            if (thruster == null || !thruster.enabled)
+                continue;
+
+            Vector3 localPosition;
+            Vector3 localDirection;
+            if (thruster.mount != null)
+            {
+                localPosition = InverseTransformPointWithoutScale(thruster.mount.position);
+                localDirection = transform.InverseTransformDirection(thruster.mount.forward);
+            }
+            else
+            {
+                localPosition = thruster.localPosition;
+                localDirection = thruster.localDirection;
+            }
+
+            if (localDirection.sqrMagnitude <= 1e-8f)
+                continue;
+
+            localDirection.Normalize();
+
+            activeThrusters[count] = thruster;
+            localPositions[count] = localPosition;
+            localDirections[count] = localDirection;
+            forceX[count] = localDirection.x;
+            forceY[count] = localDirection.y;
+            forceZ[count] = localDirection.z;
+            count++;
+        }
+
+        return count > 0;
+    }
+
+    static float GetCommonVerticalThrusterScale(VerticalThruster[] thrusters, float[] commands, int count)
+    {
+        float maxRatio = 1f;
+        for (int i = 0; i < count; i++)
+        {
+            float thrust = commands[i];
+            float limit = thrust >= 0f
+                ? Mathf.Max(0f, thrusters[i].maxForwardThrustN)
+                : Mathf.Max(0f, thrusters[i].maxReverseThrustN);
+
+            if (limit > 1e-6f)
+                maxRatio = Mathf.Max(maxRatio, Mathf.Abs(thrust) / limit);
+            else if (Mathf.Abs(thrust) > 1e-4f)
+                return 0f;
+        }
+
+        return 1f / maxRatio;
+    }
+
+    void EnsureVerticalThrusterScratchCapacity(int capacity)
+    {
+        if (_verticalThrusterScratchActive != null && _verticalThrusterScratchActive.Length == capacity)
+            return;
+
+        _verticalThrusterScratchActive = new VerticalThruster[capacity];
+        _verticalThrusterScratchPositions = new Vector3[capacity];
+        _verticalThrusterScratchDirections = new Vector3[capacity];
+        _verticalThrusterScratchForceX = new float[capacity];
+        _verticalThrusterScratchForceY = new float[capacity];
+        _verticalThrusterScratchForceZ = new float[capacity];
+        _verticalThrusterScratchCommand = new float[capacity];
+    }
+
+    void WarnInvalidVerticalThrustersOnce()
+    {
+        if (_warnedInvalidVerticalThrusters)
+            return;
+
+        _warnedInvalidVerticalThrusters = true;
+        Debug.LogWarning("[ROVInput] Vertical thruster setup is empty or singular. Heave and altitude hold forces are disabled until vertical thruster positions and directions are valid.");
+    }
+
+    Vector3 TransformLocalPointWithoutScale(Vector3 localPoint)
+    {
+        return transform.position + transform.rotation * localPoint;
+    }
+
+    Vector3 InverseTransformPointWithoutScale(Vector3 worldPoint)
+    {
+        return Quaternion.Inverse(transform.rotation) * (worldPoint - transform.position);
+    }
+
+    static float GetCommonThrusterScale(HorizontalThruster[] thrusters, float[] commands, int count)
+    {
+        float maxRatio = 1f;
+        for (int i = 0; i < count; i++)
+        {
+            float thrust = commands[i];
+            float limit = thrust >= 0f
+                ? Mathf.Max(0f, thrusters[i].maxForwardThrustN)
+                : Mathf.Max(0f, thrusters[i].maxReverseThrustN);
+
+            if (limit > 1e-6f)
+                maxRatio = Mathf.Max(maxRatio, Mathf.Abs(thrust) / limit);
+            else if (Mathf.Abs(thrust) > 1e-4f)
+                return 0f;
+        }
+
+        return 1f / maxRatio;
+    }
+
+    static float GetPlanarScaleWithYawReserved(
+        HorizontalThruster[] thrusters,
+        float[] planarCommands,
+        float[] yawCommands,
+        float yawScale,
+        int count)
+    {
+        float planarScale = 1f;
+        for (int i = 0; i < count; i++)
+        {
+            float yaw = yawCommands[i] * yawScale;
+            float planar = planarCommands[i];
+            if (Mathf.Abs(planar) <= 1e-6f)
+                continue;
+
+            float maxForward = Mathf.Max(0f, thrusters[i].maxForwardThrustN);
+            float maxReverse = Mathf.Max(0f, thrusters[i].maxReverseThrustN);
+            float upper = planar > 0f
+                ? (maxForward - yaw) / planar
+                : (-maxReverse - yaw) / planar;
+
+            planarScale = Mathf.Min(planarScale, Mathf.Max(0f, upper));
+        }
+
+        return Mathf.Clamp01(planarScale);
+    }
+
+    void EnsureHorizontalThrusterScratchCapacity(int capacity)
+    {
+        if (_thrusterScratchActive != null && _thrusterScratchActive.Length == capacity)
+            return;
+
+        _thrusterScratchActive = new HorizontalThruster[capacity];
+        _thrusterScratchPositions = new Vector3[capacity];
+        _thrusterScratchDirections = new Vector3[capacity];
+        _thrusterScratchForceX = new float[capacity];
+        _thrusterScratchForceZ = new float[capacity];
+        _thrusterScratchTorqueY = new float[capacity];
+        _thrusterScratchCommand = new float[capacity];
+        _thrusterScratchPlanarCommand = new float[capacity];
+        _thrusterScratchYawCommand = new float[capacity];
+    }
+
+    static bool SolveSymmetric3x3(
+        float m00, float m01, float m02,
+        float m11, float m12,
+        float m22,
+        float b0, float b1, float b2,
+        out Vector3 x)
+    {
+        float c00 = m11 * m22 - m12 * m12;
+        float c01 = m02 * m12 - m01 * m22;
+        float c02 = m01 * m12 - m02 * m11;
+        float c11 = m00 * m22 - m02 * m02;
+        float c12 = m01 * m02 - m00 * m12;
+        float c22 = m00 * m11 - m01 * m01;
+
+        float det = m00 * c00 + m01 * c01 + m02 * c02;
+        if (Mathf.Abs(det) <= 1e-8f)
+        {
+            x = Vector3.zero;
+            return false;
+        }
+
+        float invDet = 1f / det;
+        x = new Vector3(
+            (c00 * b0 + c01 * b1 + c02 * b2) * invDet,
+            (c01 * b0 + c11 * b1 + c12 * b2) * invDet,
+            (c02 * b0 + c12 * b1 + c22 * b2) * invDet);
+        return !(float.IsNaN(x.x) || float.IsNaN(x.y) || float.IsNaN(x.z));
+    }
+
     void StabilizeUpright()
     {
         float yaw = rb.rotation.eulerAngles.y;
@@ -1916,6 +2397,81 @@ public class ROVGamepadThrustController : MonoBehaviour
                 inputSelectionMode = InputSelectionMode.ForceKeyboard;
                 _selectedInput = InputSource.Keyboard;
                 break;
+        }
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        DrawHorizontalThrusterGizmos();
+        DrawVerticalThrusterGizmos();
+    }
+
+    void DrawHorizontalThrusterGizmos()
+    {
+        if (horizontalThrusters == null)
+            return;
+
+        Gizmos.color = new Color(0.1f, 0.8f, 1f, 1f);
+        for (int i = 0; i < horizontalThrusters.Length; i++)
+        {
+            HorizontalThruster thruster = horizontalThrusters[i];
+            if (thruster == null || !thruster.enabled)
+                continue;
+
+            Vector3 worldPosition;
+            Vector3 worldDirection;
+            if (thruster.mount != null)
+            {
+                worldPosition = thruster.mount.position;
+                worldDirection = thruster.mount.forward;
+            }
+            else
+            {
+                Vector3 localDirection = thruster.localDirection;
+                localDirection.y = 0f;
+                if (localDirection.sqrMagnitude <= 1e-8f)
+                    continue;
+
+                worldPosition = TransformLocalPointWithoutScale(thruster.localPosition);
+                worldDirection = transform.TransformDirection(localDirection.normalized);
+            }
+
+            Gizmos.DrawSphere(worldPosition, 0.035f);
+            Gizmos.DrawLine(worldPosition, worldPosition + worldDirection.normalized * 0.35f);
+        }
+    }
+
+    void DrawVerticalThrusterGizmos()
+    {
+        if (verticalThrusters == null)
+            return;
+
+        Gizmos.color = new Color(1f, 0.85f, 0.15f, 1f);
+        for (int i = 0; i < verticalThrusters.Length; i++)
+        {
+            VerticalThruster thruster = verticalThrusters[i];
+            if (thruster == null || !thruster.enabled)
+                continue;
+
+            Vector3 worldPosition;
+            Vector3 worldDirection;
+            if (thruster.mount != null)
+            {
+                worldPosition = thruster.mount.position;
+                worldDirection = thruster.mount.forward;
+            }
+            else
+            {
+                Vector3 localDirection = thruster.localDirection;
+                if (localDirection.sqrMagnitude <= 1e-8f)
+                    continue;
+
+                worldPosition = TransformLocalPointWithoutScale(thruster.localPosition);
+                worldDirection = transform.TransformDirection(localDirection.normalized);
+            }
+
+            Gizmos.DrawSphere(worldPosition, 0.035f);
+            Gizmos.DrawLine(worldPosition, worldPosition + worldDirection.normalized * 0.35f);
         }
     }
 }

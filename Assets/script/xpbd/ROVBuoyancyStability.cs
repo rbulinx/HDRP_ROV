@@ -12,15 +12,16 @@ public class ROVBuoyancyStability : MonoBehaviour
     public float restPitchDeg = 0f;
     public float restRollDeg = 0f;
     public float metacentricHeight = 0.15f;
+    public bool useMetacentricRestoringTorque = true;
 
     [Header("Buoyancy")]
     public bool setRigidbodyCenterOfMass = true;
     public bool useUnityGravity = true;
     public float buoyancyScale = 1.0f;
-    public float verticalDampingNPerMps = 120f;
+    public float verticalDampingNPerMps = 240f;
 
     [Header("Rotation Damping")]
-    public float rollPitchAngularDamping = 0.25f;
+    public float rollPitchAngularDamping = 0.9f;
 
     Rigidbody rb;
 
@@ -45,9 +46,18 @@ public class ROVBuoyancyStability : MonoBehaviour
         if (gravityMagnitude <= 1e-6f)
             return;
 
-        Vector3 buoyancyPoint = transform.TransformPoint(GetEffectiveCenterOfBuoyancyLocal());
         Vector3 buoyancyForce = -gravity.normalized * (rb.mass * gravityMagnitude * Mathf.Max(0f, buoyancyScale));
-        rb.AddForceAtPosition(buoyancyForce, buoyancyPoint, ForceMode.Force);
+
+        if (useMetacentricRestoringTorque)
+        {
+            rb.AddForce(buoyancyForce, ForceMode.Force);
+            ApplyMetacentricRestoringTorque(gravityMagnitude);
+        }
+        else
+        {
+            Vector3 buoyancyPoint = TransformLocalPointWithoutScale(GetEffectiveCenterOfBuoyancyLocal());
+            rb.AddForceAtPosition(buoyancyForce, buoyancyPoint, ForceMode.Force);
+        }
 
         if (verticalDampingNPerMps > 0f)
         {
@@ -76,22 +86,47 @@ public class ROVBuoyancyStability : MonoBehaviour
 
     Vector3 GetEffectiveCenterOfBuoyancyLocal()
     {
-        if (!useTrimmedRestAttitude)
-            return centerOfBuoyancyLocalOffset;
+        return centerOfBuoyancyLocalOffset;
+    }
 
-        Quaternion rest = Quaternion.Euler(restPitchDeg, 0f, restRollDeg);
-        Vector3 separation = Quaternion.Inverse(rest) * (Vector3.up * Mathf.Max(0.001f, metacentricHeight));
-        return centerOfMassLocalOffset + separation;
+    void ApplyMetacentricRestoringTorque(float gravityMagnitude)
+    {
+        Quaternion yawOnly = Quaternion.Euler(0f, rb.rotation.eulerAngles.y, 0f);
+        Quaternion restLocal = useTrimmedRestAttitude
+            ? Quaternion.Euler(restPitchDeg, 0f, restRollDeg)
+            : Quaternion.identity;
+        Quaternion target = yawOnly * restLocal;
+
+        Quaternion q = target * Quaternion.Inverse(rb.rotation);
+        q.ToAngleAxis(out float angleDeg, out Vector3 axis);
+        if (angleDeg > 180f) angleDeg -= 360f;
+        if (float.IsNaN(axis.x) || axis.sqrMagnitude <= 1e-8f)
+            return;
+
+        Vector3 axisWorld = axis.normalized;
+        Vector3 yawComponent = Vector3.Project(axisWorld, Vector3.up);
+        Vector3 rollPitchAxis = axisWorld - yawComponent;
+        if (rollPitchAxis.sqrMagnitude <= 1e-8f)
+            return;
+
+        float angleRad = angleDeg * Mathf.Deg2Rad;
+        float torqueMagnitude = rb.mass * gravityMagnitude * Mathf.Max(0f, metacentricHeight) * Mathf.Sin(angleRad);
+        rb.AddTorque(rollPitchAxis.normalized * torqueMagnitude, ForceMode.Force);
     }
 
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(transform.TransformPoint(centerOfMassLocalOffset), 0.08f);
+        Gizmos.DrawSphere(TransformLocalPointWithoutScale(centerOfMassLocalOffset), 0.08f);
 
         Gizmos.color = Color.cyan;
         Vector3 buoyancyLocal = GetEffectiveCenterOfBuoyancyLocal();
-        Gizmos.DrawSphere(transform.TransformPoint(buoyancyLocal), 0.08f);
-        Gizmos.DrawLine(transform.TransformPoint(centerOfMassLocalOffset), transform.TransformPoint(buoyancyLocal));
+        Gizmos.DrawSphere(TransformLocalPointWithoutScale(buoyancyLocal), 0.08f);
+        Gizmos.DrawLine(TransformLocalPointWithoutScale(centerOfMassLocalOffset), TransformLocalPointWithoutScale(buoyancyLocal));
+    }
+
+    Vector3 TransformLocalPointWithoutScale(Vector3 localPoint)
+    {
+        return transform.position + transform.rotation * localPoint;
     }
 }
