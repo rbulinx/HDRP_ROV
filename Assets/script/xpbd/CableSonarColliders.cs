@@ -226,30 +226,56 @@ namespace ROVSim.XPBD
                 ? Mathf.Max(1e-4f, CableGetNodeRadiusOrDefault(radius))
                 : Mathf.Max(1e-4f, radius);
 
+            if (!IsFinite(r))
+                r = Mathf.Max(1e-4f, radius);
+
             for (int i = 0; i < segCount; i++)
             {
+                Transform t = segTf[i];
+                var cc = segCol[i];
+                if (t == null || cc == null)
+                    continue;
+
                 Vector3 p0 = CableGetNodePosition(i);
                 Vector3 p1 = CableGetNodePosition(i + 1);
+                if (!IsFinite(p0) || !IsFinite(p1))
+                {
+                    cc.enabled = false;
+                    continue;
+                }
+
                 Vector3 d = (p1 - p0);
                 float len = d.magnitude;
 
-                if (len < 1e-6f)
+                if (!IsFinite(len) || len < 1e-6f)
+                {
+                    cc.enabled = false;
                     continue;
+                }
 
                 // 中点に配置
-                Transform t = segTf[i];
                 t.position = (p0 + p1) * 0.5f;
 
                 // Z軸がセグメント方向を向く
                 t.rotation = Quaternion.LookRotation(d / len, Vector3.up);
 
                 // コライダ寸法
-                var cc = segCol[i];
+                cc.enabled = true;
                 cc.isTrigger = isTrigger;
                 cc.radius = r;
                 // CapsuleCollider.height は半球込みなので最低2r
                 cc.height = Mathf.Max(2f * r, len + 2f * r);
             }
+        }
+
+        static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        static bool IsFinite(Vector3 value)
+        {
+            return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         }
 
         static int MaskToSingleLayer(LayerMask mask)

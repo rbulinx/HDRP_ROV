@@ -8,6 +8,12 @@ using UnityEngine;
 [RequireComponent(typeof(LineRenderer))]
 public class CableXPBD : MonoBehaviour
 {
+    public enum HydrodynamicDragModel
+    {
+        LegacyCoefficients,
+        Morison
+    }
+
     // -------------------------
     // Cable length and winch controls
     // -------------------------
@@ -60,6 +66,9 @@ public class CableXPBD : MonoBehaviour
     [Header("Underwater Forces (Cable Nodes)")]
     public float buoyancyFactor = 0.8f;
 
+    [Tooltip("LegacyCoefficients keeps the previous linear/quadratic coefficients. Morison uses cable diameter, water density, and Cd/Ct.")]
+    public HydrodynamicDragModel hydrodynamicDragModel = HydrodynamicDragModel.LegacyCoefficients;
+
     [Tooltip("Linear drag along the cable tangent. Usually much smaller than crossflow drag.")]
     public float dragLinearAlong = 0.05f;
 
@@ -71,6 +80,28 @@ public class CableXPBD : MonoBehaviour
 
     [Tooltip("Quadratic drag perpendicular to the cable tangent.")]
     public float dragQuadraticAcross = 0.0f;
+
+    [Header("Morison Drag (Cable Nodes)")]
+    [Tooltip("Sea water density used by the Morison drag term.")]
+    public float morisonWaterDensity = 1025f;
+
+    [Tooltip("Tether outside diameter in meters.")]
+    public float morisonCableDiameter = 0.03f;
+
+    [Tooltip("Normal drag coefficient Cd for cross-flow over the tether.")]
+    public float morisonNormalDragCoefficient = 1.2f;
+
+    [Tooltip("Tangential skin/friction coefficient used for flow along the tether.")]
+    public float morisonTangentialDragCoefficient = 0.02f;
+
+    [Tooltip("Scale multiplier for the final Morison drag force.")]
+    public float morisonDragScale = 1f;
+
+    [Tooltip("Caps hydrodynamic acceleration on each cable node to keep explicit drag integration stable. 0 disables the cap.")]
+    public float maxHydrodynamicAcceleration = 40f;
+
+    [Tooltip("Caps cable node speed after force integration to prevent one-frame explosions. 0 disables the cap.")]
+    public float maxCableNodeSpeed = 5f;
 
     public Vector3 currentVelocity = Vector3.zero;
 
@@ -464,6 +495,17 @@ public class CableXPBD : MonoBehaviour
         for (int s = 0; s < substeps; s++)
             Step(h);
 
+        if (!IsCableStateFinite())
+        {
+            Debug.LogWarning(BuildNonFiniteCableStateMessage(), this);
+            InitCable();
+            if (!IsCableStateFinite())
+            {
+                if (lr) lr.enabled = false;
+                return;
+            }
+        }
+
         if (renderLine) UpdateLineRenderer();
 
         lastCableLength = ComputeCableLength();
@@ -526,10 +568,22 @@ public class CableXPBD : MonoBehaviour
             // Drag is computed from velocity relative to the water current.
             Vector3 vRel = v[i] - curVel;
             Vector3 drag = ComputeHydrodynamicDrag(i, vRel);
+            Vector3 dragA = drag / Mathf.Max(1e-6f, massPerNode);
 
-            Vector3 a = gEff + drag / Mathf.Max(1e-6f, massPerNode);
+            float maxDragA = Mathf.Max(0f, maxHydrodynamicAcceleration);
+            if (maxDragA > 0f && dragA.sqrMagnitude > maxDragA * maxDragA)
+                dragA = dragA.normalized * maxDragA;
+
+            Vector3 a = gEff + dragA;
 
             v[i] = v[i] + a * dt;
+            if (!IsFinite(v[i]))
+            {
+                v[i] = Vector3.zero;
+                continue;
+            }
+
+            LimitCableNodeVelocity(ref v[i]);
             v[i] *= (1f - linearDamping);
             x[i] = x[i] + v[i] * dt;
         }
@@ -562,12 +616,19 @@ public class CableXPBD : MonoBehaviour
             }
 
             v[i] = (x[i] - xPrev[i]) / dt;
+            if (!IsFinite(v[i]))
+            {
+                v[i] = Vector3.zero;
+                continue;
+            }
 
             float cd = Mathf.Clamp01(constraintVelocityDamping);
             if (cd > 0f) v[i] *= (1f - cd);
 
             float cvd = Mathf.Clamp01(collisionVelocityDamping);
             if (cvd > 0f && collidedThisStep[i]) v[i] *= (1f - cvd);
+
+            LimitCableNodeVelocity(ref v[i]);
         }
     }
 
@@ -843,12 +904,11 @@ public class CableXPBD : MonoBehaviour
     {
         if (!applyCurrentLoadToBottom) return Vector3.zero;
         if (x == null || v == null || x.Length < 2) return Vector3.zero;
-        if (currentVelocity.sqrMagnitude <= 1e-8f) return Vector3.zero;
 
         float surfaceY = GetWaterLevelY();
         Vector3 totalDrag = Vector3.zero;
 
-        // Sum the drag on the cable and pass a configurable share to the bottom body.
+        // Sum the cable hydrodynamic drag from node-water relative velocity and pass it to the bottom body.
         for (int i = 0; i < x.Length; i++)
         {
             bool isAboveSurface = enableWaterSurface && (x[i].y > surfaceY);
@@ -856,7 +916,11 @@ public class CableXPBD : MonoBehaviour
                 continue;
 
             Vector3 vRel = v[i] - currentVelocity;
+            if (vRel.sqrMagnitude <= 1e-12f)
+                continue;
+
             Vector3 drag = ComputeHydrodynamicDrag(i, vRel);
+            drag = ClampHydrodynamicDrag(drag);
 
             float weight = (i == 0 || i == x.Length - 1) ? 0.5f : 1f;
             totalDrag += drag * weight;
@@ -908,6 +972,9 @@ public class CableXPBD : MonoBehaviour
         if (relativeVelocity.sqrMagnitude <= 1e-12f)
             return Vector3.zero;
 
+        if (hydrodynamicDragModel == HydrodynamicDragModel.Morison)
+            return ComputeMorisonDrag(nodeIndex, relativeVelocity);
+
         Vector3 tangent = GetCableTangentAtNode(nodeIndex);
         if (tangent.sqrMagnitude <= 1e-12f)
         {
@@ -932,6 +999,76 @@ public class CableXPBD : MonoBehaviour
             drag += -qAcross * vAcross.magnitude * vAcross;
 
         return drag;
+    }
+
+    Vector3 ClampHydrodynamicDrag(Vector3 drag)
+    {
+        if (!IsFinite(drag))
+            return Vector3.zero;
+
+        float maxDragA = Mathf.Max(0f, maxHydrodynamicAcceleration);
+        if (maxDragA <= 0f)
+            return drag;
+
+        float maxForce = Mathf.Max(1e-6f, massPerNode) * maxDragA;
+        if (drag.sqrMagnitude > maxForce * maxForce)
+            return drag.normalized * maxForce;
+
+        return drag;
+    }
+
+    Vector3 ComputeMorisonDrag(int nodeIndex, Vector3 relativeVelocity)
+    {
+        Vector3 tangent = GetCableTangentAtNode(nodeIndex);
+        if (tangent.sqrMagnitude <= 1e-12f)
+        {
+            float speed = relativeVelocity.magnitude;
+            float areaLength = Mathf.Max(1e-5f, morisonCableDiameter) * GetNodeTributaryLength(nodeIndex);
+            float coefficient = 0.5f
+                                * Mathf.Max(0f, morisonWaterDensity)
+                                * Mathf.Max(0f, morisonNormalDragCoefficient)
+                                * areaLength
+                                * Mathf.Max(0f, morisonDragScale);
+            return -coefficient * speed * relativeVelocity;
+        }
+
+        Vector3 vAlong = Vector3.Project(relativeVelocity, tangent);
+        Vector3 vAcross = relativeVelocity - vAlong;
+
+        float rho = Mathf.Max(0f, morisonWaterDensity);
+        float diameter = Mathf.Max(1e-5f, morisonCableDiameter);
+        float length = GetNodeTributaryLength(nodeIndex);
+        float scale = Mathf.Max(0f, morisonDragScale);
+
+        float normalArea = diameter * length;
+        float tangentialArea = Mathf.PI * diameter * length;
+
+        float normalCoeff = 0.5f * rho * Mathf.Max(0f, morisonNormalDragCoefficient) * normalArea * scale;
+        float tangentialCoeff = 0.5f * rho * Mathf.Max(0f, morisonTangentialDragCoefficient) * tangentialArea * scale;
+
+        return -normalCoeff * vAcross.magnitude * vAcross
+               -tangentialCoeff * vAlong.magnitude * vAlong;
+    }
+
+    float GetNodeTributaryLength(int nodeIndex)
+    {
+        float restLength = Mathf.Max(1e-4f, segLen);
+        if (x == null || x.Length < 2)
+            return restLength;
+
+        int i = Mathf.Clamp(nodeIndex, 0, x.Length - 1);
+        float length = 0f;
+
+        if (i > 0)
+            length += 0.5f * Vector3.Distance(x[i], x[i - 1]);
+
+        if (i < x.Length - 1)
+            length += 0.5f * Vector3.Distance(x[i + 1], x[i]);
+
+        if (!IsFinite(length))
+            return restLength;
+
+        return Mathf.Clamp(length, restLength * 0.25f, restLength * 2f);
     }
 
     Vector3 GetCableTangentAtNode(int nodeIndex)
@@ -1086,6 +1223,7 @@ public class CableXPBD : MonoBehaviour
     void ApplyCableLoadToBottom(Rigidbody rb, Vector3 force)
     {
         if (rb == null) return;
+        if (!IsFinite(force)) return;
 
         if (applyForceAtAttachPoint)
             rb.AddForceAtPosition(force, GetCableLoadApplicationPoint(rb), ForceMode.Force);
@@ -1136,9 +1274,92 @@ public class CableXPBD : MonoBehaviour
         return L;
     }
 
+    bool IsCableStateFinite()
+    {
+        if (x == null || v == null) return false;
+
+        for (int i = 0; i < x.Length; i++)
+        {
+            if (!IsFinite(x[i]))
+                return false;
+        }
+
+        for (int i = 0; i < v.Length; i++)
+        {
+            if (!IsFinite(v[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    static bool IsFinite(Vector3 value)
+    {
+        return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+    }
+
+    void LimitCableNodeVelocity(ref Vector3 velocity)
+    {
+        if (!IsFinite(velocity))
+        {
+            velocity = Vector3.zero;
+            return;
+        }
+
+        float maxSpeed = Mathf.Max(0f, maxCableNodeSpeed);
+        if (maxSpeed > 0f && velocity.sqrMagnitude > maxSpeed * maxSpeed)
+            velocity = velocity.normalized * maxSpeed;
+    }
+
+    string BuildNonFiniteCableStateMessage()
+    {
+        float maxSpeed = 0f;
+        if (v != null)
+        {
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (IsFinite(v[i]))
+                    maxSpeed = Mathf.Max(maxSpeed, v[i].magnitude);
+            }
+        }
+
+        float maxSegment = 0f;
+        if (x != null && x.Length >= 2)
+        {
+            for (int i = 0; i < x.Length - 1; i++)
+            {
+                Vector3 d = x[i + 1] - x[i];
+                if (IsFinite(d))
+                    maxSegment = Mathf.Max(maxSegment, d.magnitude);
+            }
+        }
+
+        float endDistance = 0f;
+        if (topAnchor != null && bottomAttach != null)
+            endDistance = Vector3.Distance(topAnchor.position, bottomAttach.position);
+
+        return $"[{nameof(CableXPBD)}] Non-finite cable state detected; reinitializing cable. " +
+               $"drag={hydrodynamicDragModel}, current={currentVelocity.magnitude:0.###} m/s, " +
+               $"maxNodeSpeed={maxSpeed:0.###} m/s, maxSegment={maxSegment:0.###} m, " +
+               $"segLen={segLen:0.###} m, endDist={endDistance:0.###} m, " +
+               $"hydroAmax={maxHydrodynamicAcceleration:0.###}, nodeSpeedMax={maxCableNodeSpeed:0.###}";
+    }
+
     void UpdateLineRenderer()
     {
         if (!lr || x == null) return;
+        if (!IsCableStateFinite())
+        {
+            lr.enabled = false;
+            return;
+        }
+
+        lr.enabled = renderLine;
         if (lr.positionCount != x.Length) lr.positionCount = x.Length;
         lr.SetPositions(x);
     }
@@ -1159,9 +1380,21 @@ public class CableXPBD : MonoBehaviour
         if (x == null || x.Length == 0)
             return (topAnchor ? topAnchor.position : transform.position);
 
-        if (i <= 0) return x[0];
-        if (i >= x.Length) return x[x.Length - 1];
-        return x[i];
+        Vector3 p;
+        if (i <= 0) p = x[0];
+        else if (i >= x.Length) p = x[x.Length - 1];
+        else p = x[i];
+
+        if (IsFinite(p))
+            return p;
+
+        if (topAnchor != null && IsFinite(topAnchor.position))
+            return topAnchor.position;
+
+        if (IsFinite(transform.position))
+            return transform.position;
+
+        return Vector3.zero;
     }
 
     public float GetCableLengthMeters() => lastCableLength;
@@ -1170,6 +1403,19 @@ public class CableXPBD : MonoBehaviour
     public float GetCableBuoyancyLoadNewton() => lastCableBuoyancyLoadN;
     public float GetBottomSegmentTensionNewton() => lastBottomSegmentTensionN;
     public float GetStretchMeters() => lastStretch;
+    public string GetHydrodynamicDragModelName() => hydrodynamicDragModel.ToString();
+
+    public void SetHydrodynamicDragModel(HydrodynamicDragModel model)
+    {
+        hydrodynamicDragModel = model;
+    }
+
+    public void ToggleHydrodynamicDragModel()
+    {
+        hydrodynamicDragModel = hydrodynamicDragModel == HydrodynamicDragModel.LegacyCoefficients
+            ? HydrodynamicDragModel.Morison
+            : HydrodynamicDragModel.LegacyCoefficients;
+    }
 
     public void ReelOutStep()
     {
@@ -1234,6 +1480,13 @@ public class CableXPBD : MonoBehaviour
         dragLinearAcross = Mathf.Max(0f, dragLinearAcross);
         dragQuadraticAlong = Mathf.Max(0f, dragQuadraticAlong);
         dragQuadraticAcross = Mathf.Max(0f, dragQuadraticAcross);
+        morisonWaterDensity = Mathf.Max(0f, morisonWaterDensity);
+        morisonCableDiameter = Mathf.Max(1e-5f, morisonCableDiameter);
+        morisonNormalDragCoefficient = Mathf.Max(0f, morisonNormalDragCoefficient);
+        morisonTangentialDragCoefficient = Mathf.Max(0f, morisonTangentialDragCoefficient);
+        morisonDragScale = Mathf.Max(0f, morisonDragScale);
+        maxHydrodynamicAcceleration = Mathf.Max(0f, maxHydrodynamicAcceleration);
+        maxCableNodeSpeed = Mathf.Max(0f, maxCableNodeSpeed);
         maxCurrentTensionNewton = Mathf.Max(0f, maxCurrentTensionNewton);
         maxCableBuoyancyLoadNewton = Mathf.Max(0f, maxCableBuoyancyLoadNewton);
         winchStepMeters = Mathf.Max(0.1f, winchStepMeters);

@@ -78,6 +78,7 @@ public class ROVHUD : MonoBehaviour
     MethodInfo miGetBottomSegmentTensionNewton;
     MethodInfo miGetCableLengthMeters;
     MethodInfo miGetStretchMeters;
+    MethodInfo miGetHydrodynamicDragModelName;
 
     void Awake()
     {
@@ -243,6 +244,13 @@ public class ROVHUD : MonoBehaviour
             Type.EmptyTypes,
             null);
 
+        miGetHydrodynamicDragModelName = t.GetMethod(
+            "GetHydrodynamicDragModelName",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+
         return true;
     }
 
@@ -402,6 +410,30 @@ public class ROVHUD : MonoBehaviour
         }
     }
 
+    bool TryGetHydrodynamicDragModelName(out string dragModelName)
+    {
+        dragModelName = "";
+        if (sourceCable == null) return false;
+
+        if (sourceCable is CableXPBD xpbdCable)
+        {
+            dragModelName = xpbdCable.GetHydrodynamicDragModelName();
+            return !string.IsNullOrEmpty(dragModelName);
+        }
+
+        if (miGetHydrodynamicDragModelName == null) return false;
+
+        try
+        {
+            dragModelName = miGetHydrodynamicDragModelName.Invoke(sourceCable, null) as string;
+            return !string.IsNullOrEmpty(dragModelName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     void Update()
     {
         if (target == null || hudText == null) return;
@@ -451,6 +483,9 @@ public class ROVHUD : MonoBehaviour
 
                     if (TryGetStretch(out float debugStretch))
                         cableDebugLines += $"\nStretch: {debugStretch:0.000} m";
+
+                    if (TryGetHydrodynamicDragModelName(out string dragModelName))
+                        cableDebugLines += $"\nDrag: {dragModelName}";
                 }
             }
             else

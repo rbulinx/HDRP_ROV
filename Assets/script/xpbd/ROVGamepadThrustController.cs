@@ -239,6 +239,9 @@ public class ROVGamepadThrustController : MonoBehaviour
     [Tooltip("1点あたり最大力[N]")]
     public float maxWaveForcePerPoint = 180f;
 
+    [Tooltip("Disable wave rocking inside this distance below the hard water-surface clamp to prevent clamp/force chatter.")]
+    public float waveRockingClampGuardMeters = 0.08f;
+
     [Header("Wave Rocking: Optional Bob (small vertical)")]
     [Tooltip("上下ボブを有効化（小さめ推奨）。TiltだけならOFFでもOK")]
     public bool enableWaveBob = false;
@@ -572,6 +575,14 @@ public class ROVGamepadThrustController : MonoBehaviour
         float maxDepth = Mathf.Max(0.001f, waveAffectMaxDepthMeters);
         float k = 1f - Mathf.Clamp01(depthCenter / maxDepth);
         if (k <= 0f) return;
+
+        if (clampToWaterSurface)
+        {
+            float hardLimitY = GetWaterSurfaceYAt(rb.position) - Mathf.Max(0f, hardClampBelowSurfaceMeters);
+            float guard = Mathf.Max(0f, waveRockingClampGuardMeters);
+            if (rb.position.y >= hardLimitY - guard)
+                return;
+        }
 
         // 1) Tilt：平均水面からの“凹凸差”だけで力を入れる（合計上下力は理論上0）
         for (int i = 0; i < n; i++)
