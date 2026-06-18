@@ -63,6 +63,7 @@ namespace Robalink.OculusEmulator
         public float echoWidthMeters = 0.08f;
         public float echoSigmaMeters = 0.03f;
         [Range(1, 16)] public int maxEchoesPerBeam = 3;
+        public bool firstReturnOnly = false;
         public float minEchoSeparationMeters = 0.12f;
         public float repeatedHitBoost = 0.18f;
         public bool useSphereCast = true;
@@ -865,6 +866,52 @@ namespace Robalink.OculusEmulator
         {
             float minSeparation = Mathf.Max(minEchoSeparationMeters, 0.5f * echoSigmaMeters);
             int maxEchoCount = Mathf.Max(1, maxEchoesPerBeam);
+
+            if (firstReturnOnly)
+            {
+                if (beamEchoes.Count == 0)
+                {
+                    beamEchoes.Add(new BeamEcho
+                    {
+                        Distance = hit.distance,
+                        Score = score,
+                        AggregateScore = score,
+                        SampleCount = 1,
+                        Hit = hit,
+                    });
+                    return;
+                }
+
+                BeamEcho first = beamEchoes[0];
+                if (hit.distance < first.Distance - minSeparation)
+                {
+                    beamEchoes[0] = new BeamEcho
+                    {
+                        Distance = hit.distance,
+                        Score = score,
+                        AggregateScore = score,
+                        SampleCount = 1,
+                        Hit = hit,
+                    };
+                    return;
+                }
+
+                if (Mathf.Abs(first.Distance - hit.distance) <= minSeparation)
+                {
+                    if (score > first.Score)
+                    {
+                        first.Distance = hit.distance;
+                        first.Score = score;
+                        first.Hit = hit;
+                    }
+
+                    first.AggregateScore += score;
+                    first.SampleCount += 1;
+                    beamEchoes[0] = first;
+                }
+
+                return;
+            }
 
             for (int i = 0; i < beamEchoes.Count; i++)
             {

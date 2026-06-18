@@ -576,13 +576,28 @@ public class ROVGamepadThrustController : MonoBehaviour
         float k = 1f - Mathf.Clamp01(depthCenter / maxDepth);
         if (k <= 0f) return;
 
+        float clampFade = 1f;
+        float hardLimitY = float.PositiveInfinity;
+        float guard = Mathf.Max(0f, waveRockingClampGuardMeters);
         if (clampToWaterSurface)
         {
-            float hardLimitY = GetWaterSurfaceYAt(rb.position) - Mathf.Max(0f, hardClampBelowSurfaceMeters);
-            float guard = Mathf.Max(0f, waveRockingClampGuardMeters);
-            if (rb.position.y >= hardLimitY - guard)
+            hardLimitY = GetWaterSurfaceYAt(rb.position) - Mathf.Max(0f, hardClampBelowSurfaceMeters);
+            if (guard > 0f)
+            {
+                float clearanceBelowClamp = hardLimitY - rb.position.y;
+                clampFade = Mathf.Clamp01(clearanceBelowClamp / guard);
+                clampFade = clampFade * clampFade * (3f - 2f * clampFade);
+            }
+            else if (rb.position.y >= hardLimitY)
+            {
+                clampFade = 0f;
+            }
+
+            if (clampFade <= 0f)
                 return;
         }
+
+        k *= clampFade;
 
         // 1) Tilt：平均水面からの“凹凸差”だけで力を入れる（合計上下力は理論上0）
         for (int i = 0; i < n; i++)
@@ -608,6 +623,9 @@ public class ROVGamepadThrustController : MonoBehaviour
             }
 
             float targetY = avgSurface - Mathf.Max(0f, waveDesiredSubmergeMeters);
+            if (clampToWaterSurface && float.IsFinite(hardLimitY) && guard > 0f)
+                targetY = Mathf.Min(targetY, hardLimitY - guard);
+
             float err = targetY - rb.position.y;
             float vyCenter = rb.linearVelocity.y;
 

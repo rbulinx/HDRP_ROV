@@ -5,6 +5,7 @@ public class EnvironmentControlMenu : MonoBehaviour
 {
     public static void EnsureInstance()
     {
+        StartupEnvironmentPresetMenu.EnsureInstance();
     }
 
     void Awake()

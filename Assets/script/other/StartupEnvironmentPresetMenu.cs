@@ -600,6 +600,7 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
         {
             MonoBehaviour behaviour = behaviours[i];
             if (behaviour == null) continue;
+            if (behaviour is CableXPBD_MultiFloat) continue;
 
             FieldInfo field = behaviour.GetType().GetField("currentVelocity", BindingFlags.Instance | BindingFlags.Public);
             if (field != null && field.FieldType == typeof(Vector3))
@@ -622,13 +623,14 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
 
     void ApplyCurrentVelocityToScene()
     {
-        MonoBehaviour[] behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        MonoBehaviour[] behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         int applied = 0;
 
         for (int i = 0; i < behaviours.Length; i++)
         {
             MonoBehaviour behaviour = behaviours[i];
             if (behaviour == null) continue;
+            if (behaviour is CableXPBD_MultiFloat) continue;
 
             FieldInfo field = behaviour.GetType().GetField("currentVelocity", BindingFlags.Instance | BindingFlags.Public);
             if (field == null || field.FieldType != typeof(Vector3)) continue;
@@ -637,6 +639,22 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
             applied++;
         }
 
+        ApplyCurrentVelocityToInspectionCables(selectedCurrentVelocity, ref applied);
+        Debug.Log($"[EnvMenu] Current velocity {selectedCurrentVelocity} applied to {applied} component(s).");
+    }
+
+    static void ApplyCurrentVelocityToInspectionCables(Vector3 currentVelocity, ref int applied)
+    {
+        CableXPBD_MultiFloat[] inspectionCables = FindObjectsByType<CableXPBD_MultiFloat>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < inspectionCables.Length; i++)
+        {
+            CableXPBD_MultiFloat cable = inspectionCables[i];
+            if (cable == null)
+                continue;
+
+            cable.currentVelocity = currentVelocity;
+            applied++;
+        }
     }
 
     void ApplyMissionSelectionToScene()
