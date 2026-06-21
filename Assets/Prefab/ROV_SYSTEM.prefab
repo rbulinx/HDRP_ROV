@@ -3512,6 +3512,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   matchCableRadius: 1
+  useMeshColliders: 1
   rebuildEveryStart: 1
 --- !u!114 &3055642470223042559
 MonoBehaviour:
@@ -3541,18 +3542,18 @@ MonoBehaviour:
   waterSurfaceTransform: {fileID: 0}
   waterSurfaceYOffset: 0
   disableCurrentAboveSurface: 1
-  massPerNode: 0.2
+  massPerNode: 0.05
   linearDamping: 0.05
-  buoyancyFactor: 0.3
+  buoyancyFactor: 1
   hydrodynamicDragModel: 1
   dragLinearAlong: 0.05
   dragLinearAcross: 0.3
   dragQuadraticAlong: 0
   dragQuadraticAcross: 0
   morisonWaterDensity: 1025
-  morisonCableDiameter: 0.03
+  morisonCableDiameter: 0.01
   morisonNormalDragCoefficient: 1.2
-  morisonTangentialDragCoefficient: 0.02
+  morisonTangentialDragCoefficient: 0.05
   morisonDragScale: 1
   maxHydrodynamicAcceleration: 40
   maxCableNodeSpeed: 5
@@ -3569,9 +3570,7 @@ MonoBehaviour:
   useEAForDistanceCompliance: 1
   axialRigidityEA: 2000000
   enableBending: 1
-  bendingCompliance: 0
-  usePhysicalEI: 1
-  bendingRigidityEI: 20
+  bendingRigidityEI: 0.5
   bendingMaxCorrection: 0
   enableCollision: 1
   useCapsuleCollision: 1
@@ -3594,9 +3593,10 @@ MonoBehaviour:
   slackMeters: 0.02
   requireNearTautMeters: 0.2
   axialDamping: 500
-  maxTensionNewton: 1500
+  maxTensionNewton: 250
   maxTensionRate: 4000
   applyForceAtAttachPoint: 0
+  coupleBottomRigidbodyInXPBD: 1
   useBottomSegmentDirectionForTension: 1
   useBottomSegmentConstraintTension: 0
   maxBottomSegmentConstraintTensionNewton: 250
@@ -3903,7 +3903,7 @@ Transform:
   m_GameObject: {fileID: 8397650734869393621}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

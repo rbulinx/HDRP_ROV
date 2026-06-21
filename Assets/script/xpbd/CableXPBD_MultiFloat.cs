@@ -214,10 +214,6 @@ public partial class CableXPBD_MultiFloat : MonoBehaviour
     [Header("Bending (Curvature XPBD)")]
     public bool enableBending = true;
 
-    public float bendingCompliance = 0.0f;
-
-    public bool usePhysicalEI = true;
-
     public float bendingRigidityEI = 20.0f;
 
     public float bendingMaxCorrection = 0.0f;
@@ -1304,15 +1300,10 @@ public partial class CableXPBD_MultiFloat : MonoBehaviour
     // -------------------------
     void SolveBendingCurvatureXPBD(float dt)
     {
-        float compliance = Mathf.Max(0f, bendingCompliance);
-
-        if (usePhysicalEI)
-        {
-            float EI = Mathf.Max(1e-8f, bendingRigidityEI);
-            float ds = Mathf.Max(1e-4f, segLen);
-            // Simple curvature-compliance approximation based on segment length and EI.
-            compliance = (ds * ds * ds * ds) / EI;
-        }
+        float EI = Mathf.Max(1e-8f, bendingRigidityEI);
+        float ds = Mathf.Max(1e-4f, segLen);
+        // Simple curvature-compliance approximation based on segment length and EI.
+        float compliance = (ds * ds * ds * ds) / EI;
 
         float alpha = compliance / Mathf.Max(1e-8f, dt * dt);
 

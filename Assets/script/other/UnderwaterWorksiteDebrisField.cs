@@ -82,6 +82,9 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
         if (!ActiveFields.Contains(this))
             ActiveFields.Add(this);
 
+        if (!Application.isPlaying)
+            RemoveSerializedDebrisChildren();
+
         RebuildIfNeeded();
     }
 
@@ -468,7 +471,19 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
     public void ForceRebuild()
     {
         ClearDebris();
+        if (!Application.isPlaying)
+            RemoveSerializedDebrisChildren();
         RebuildIfNeeded(true);
+    }
+
+    void RemoveSerializedDebrisChildren()
+    {
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = transform.GetChild(i);
+            if (child != null && child.name == "WorksiteDebris")
+                DestroyImmediate(child.gameObject);
+        }
     }
 
     void RebuildIfNeeded(bool force = false)
@@ -489,6 +504,8 @@ public class UnderwaterWorksiteDebrisField : MonoBehaviour
         uint state = Hash((uint)(seed + index * 1009));
 
         GameObject go = new GameObject("WorksiteDebris");
+        if (!Application.isPlaying)
+            go.hideFlags = HideFlags.HideAndDontSave;
         go.transform.SetParent(transform, false);
 
         bool plate = useRoundVisualDebris || Next01(ref state) < plateRatio;

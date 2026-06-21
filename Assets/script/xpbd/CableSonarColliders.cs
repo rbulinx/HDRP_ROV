@@ -44,11 +44,16 @@ namespace ROVSim.XPBD
         [Tooltip("ケーブル側に nodeRadius があればそれを使う")]
         public bool matchCableRadius = true;
 
+        [Tooltip("Use cylinder MeshColliders so segment ends do not create rounded, float-like sonar echoes.")]
+        public bool useMeshColliders = false;
+
         [Header("Performance")]
         public bool rebuildEveryStart = true;
 
         Transform[] segTf;
         CapsuleCollider[] segCol;
+        MeshCollider[] segMeshCol;
+        static Mesh sharedCylinderMesh;
 
         // ---- cached reflection ----
         MethodInfo miGetNodeCount;
@@ -184,6 +189,7 @@ namespace ROVSim.XPBD
 
             segTf = new Transform[segCount];
             segCol = new CapsuleCollider[segCount];
+            segMeshCol = new MeshCollider[segCount];
 
             for (int i = 0; i < segCount; i++)
             {
@@ -195,6 +201,17 @@ namespace ROVSim.XPBD
                 {
                     int layer = MaskToSingleLayer(sonarLayer);
                     if (layer >= 0) go.layer = layer;
+                }
+
+                if (useMeshColliders)
+                {
+                    var mc = go.AddComponent<MeshCollider>();
+                    mc.sharedMesh = GetSharedCylinderMesh();
+                    mc.convex = isTrigger;
+                    mc.isTrigger = isTrigger;
+                    segTf[i] = go.transform;
+                    segMeshCol[i] = mc;
+                    continue;
                 }
 
                 var cc = go.AddComponent<CapsuleCollider>();
@@ -233,14 +250,16 @@ namespace ROVSim.XPBD
             {
                 Transform t = segTf[i];
                 var cc = segCol[i];
-                if (t == null || cc == null)
+                var mc = segMeshCol[i];
+                if (t == null || (cc == null && mc == null))
                     continue;
 
                 Vector3 p0 = CableGetNodePosition(i);
                 Vector3 p1 = CableGetNodePosition(i + 1);
                 if (!IsFinite(p0) || !IsFinite(p1))
                 {
-                    cc.enabled = false;
+                    if (cc != null) cc.enabled = false;
+                    if (mc != null) mc.enabled = false;
                     continue;
                 }
 
@@ -249,7 +268,8 @@ namespace ROVSim.XPBD
 
                 if (!IsFinite(len) || len < 1e-6f)
                 {
-                    cc.enabled = false;
+                    if (cc != null) cc.enabled = false;
+                    if (mc != null) mc.enabled = false;
                     continue;
                 }
 
@@ -257,7 +277,19 @@ namespace ROVSim.XPBD
                 t.position = (p0 + p1) * 0.5f;
 
                 // Z軸がセグメント方向を向く
+                if (mc != null)
+                {
+                    // Unity's cylinder mesh is two units high along local Y.
+                    t.rotation = Quaternion.FromToRotation(Vector3.up, d / len);
+                    t.localScale = new Vector3(r * 2f, len * 0.5f, r * 2f);
+                    mc.enabled = true;
+                    mc.convex = isTrigger;
+                    mc.isTrigger = isTrigger;
+                    continue;
+                }
+
                 t.rotation = Quaternion.LookRotation(d / len, Vector3.up);
+                t.localScale = Vector3.one;
 
                 // コライダ寸法
                 cc.enabled = true;
@@ -266,6 +298,25 @@ namespace ROVSim.XPBD
                 // CapsuleCollider.height は半球込みなので最低2r
                 cc.height = Mathf.Max(2f * r, len + 2f * r);
             }
+        }
+
+        static Mesh GetSharedCylinderMesh()
+        {
+            if (sharedCylinderMesh != null)
+                return sharedCylinderMesh;
+
+            GameObject temp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            MeshFilter filter = temp.GetComponent<MeshFilter>();
+            if (filter != null)
+                sharedCylinderMesh = filter.sharedMesh;
+
+#if UNITY_EDITOR
+            DestroyImmediate(temp);
+#else
+            Destroy(temp);
+#endif
+
+            return sharedCylinderMesh;
         }
 
         static bool IsFinite(float value)

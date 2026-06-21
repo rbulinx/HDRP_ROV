@@ -94,8 +94,6 @@ public partial class CableXPBD_MultiFloat
         bendingRigidityEI = Mathf.Max(0f, bendingRigidityEI);
 
         distanceCompliance = Mathf.Max(0f, distanceCompliance);
-        bendingCompliance = Mathf.Max(0f, bendingCompliance);
-
         slackMeters = Mathf.Max(0f, slackMeters);
         requireNearTautMeters = Mathf.Max(0f, requireNearTautMeters);
 

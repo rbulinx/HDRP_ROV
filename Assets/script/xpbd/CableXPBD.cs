@@ -92,7 +92,7 @@ public class CableXPBD : MonoBehaviour
     public float morisonNormalDragCoefficient = 1.2f;
 
     [Tooltip("Tangential skin/friction coefficient used for flow along the tether.")]
-    public float morisonTangentialDragCoefficient = 0.02f;
+    public float morisonTangentialDragCoefficient = 0.05f;
 
     [Tooltip("Scale multiplier for the final Morison drag force.")]
     public float morisonDragScale = 1f;
@@ -140,11 +140,7 @@ public class CableXPBD : MonoBehaviour
     [Header("Bending (Curvature XPBD)")]
     public bool enableBending = true;
 
-    public float bendingCompliance = 0.0f;
-
-    public bool usePhysicalEI = true;
-
-    public float bendingRigidityEI = 20.0f;
+    public float bendingRigidityEI = 0.5f;
 
     public float bendingMaxCorrection = 0.0f;
 
@@ -203,6 +199,9 @@ public class CableXPBD : MonoBehaviour
     [Tooltip("ON: cable load creates torque around the attach point. OFF: apply through the Rigidbody center so light tether tension does not rotate the ROV.")]
     public bool applyForceAtAttachPoint = false;
 
+    [Tooltip("Include the bottom Rigidbody as the dynamic endpoint of the XPBD cable constraint.")]
+    public bool coupleBottomRigidbodyInXPBD = false;
+
     public bool useBottomSegmentDirectionForTension = true;
     public bool useBottomSegmentConstraintTension = false;
     public float maxBottomSegmentConstraintTensionNewton = 250f;
@@ -253,6 +252,10 @@ public class CableXPBD : MonoBehaviour
     float tensionFiltered = 0f;
     Vector3 dirFiltered = Vector3.forward;
     float lengthFiltered = 0f;
+    Vector3 coupledBottomImpulse;
+    Vector3 coupledPredictedLinearVelocity;
+    Vector3 coupledPredictedAngularVelocity;
+    float coupledBottomTensionN;
 
     void Awake()
     {
@@ -486,7 +489,14 @@ public class CableXPBD : MonoBehaviour
         segLen = deployedLength / (nodeCount - 1);
 
         if (topAnchor) x[0] = topAnchor.position;
-        if (bottomAttach) x[nodeCount - 1] = bottomAttach.position;
+
+        bool useCoupledBottom = CanCoupleBottomRigidbody();
+        if (bottomAttach)
+        {
+            x[nodeCount - 1] = bottomAttach.position;
+            if (useCoupledBottom)
+                BeginCoupledBottomStep();
+        }
 
         if (probe && Mathf.Abs(probe.radius - nodeRadius) > 1e-6f)
             probe.radius = Mathf.Max(1e-4f, nodeRadius);
@@ -494,6 +504,12 @@ public class CableXPBD : MonoBehaviour
         float h = dt / Mathf.Max(1, substeps);
         for (int s = 0; s < substeps; s++)
             Step(h);
+
+        if (useCoupledBottom)
+        {
+            CommitCoupledBottomImpulse(dt);
+            x[nodeCount - 1] = bottomAttach.position;
+        }
 
         if (!IsCableStateFinite())
         {
@@ -518,7 +534,12 @@ public class CableXPBD : MonoBehaviour
         lastTensionN = 0f;
         if (applyTensionToBottom && bottomRigidbody != null && topAnchor != null && bottomAttach != null)
         {
-            if (tensionMode == TensionMode.CableLengthEA_Stabilized)
+            if (useCoupledBottom)
+            {
+                tensionFiltered = coupledBottomTensionN;
+                lastTensionN = coupledBottomTensionN;
+            }
+            else if (tensionMode == TensionMode.CableLengthEA_Stabilized)
                 ApplyTensionEA_Stabilized(bottomRigidbody, dt);
             else
                 ApplyTension_EndToEndLimit_NoThrust(bottomRigidbody, dt);
@@ -548,6 +569,13 @@ public class CableXPBD : MonoBehaviour
             xPrev = new Vector3[nodeCount];
 
         float surfaceY = GetWaterLevelY();
+
+        if (CanCoupleBottomRigidbody())
+        {
+            int last = nodeCount - 1;
+            xPrev[last] = x[last];
+            x[last] += GetCoupledAttachPointVelocity() * dt;
+        }
 
         for (int i = 0; i < nodeCount; i++)
         {
@@ -604,7 +632,8 @@ public class CableXPBD : MonoBehaviour
                 SolveDistanceXPBD(dt);
 
             if (topAnchor) x[0] = topAnchor.position;
-            if (bottomAttach) x[nodeCount - 1] = bottomAttach.position;
+            if (bottomAttach && !CanCoupleBottomRigidbody())
+                x[nodeCount - 1] = bottomAttach.position;
         }
 
         for (int i = 0; i < nodeCount; i++)
@@ -630,6 +659,8 @@ public class CableXPBD : MonoBehaviour
 
             LimitCableNodeVelocity(ref v[i]);
         }
+
+        AccumulateCoupledBottomImpulse(dt);
     }
 
     // -------------------------
@@ -651,20 +682,28 @@ public class CableXPBD : MonoBehaviour
         {
             int j = i + 1;
 
-            float w1 = invM[i];
-            float w2 = invM[j];
-            float wSum = w1 + w2;
-            if (wSum <= 0f) continue;
-
             Vector3 d = x[j] - x[i];
             float dist = d.magnitude;
             if (dist < 1e-8f) continue;
 
             Vector3 n = d / dist;
 
+            bool coupledEndpoint = j == nodeCount - 1 && CanCoupleBottomRigidbody();
+            float w1 = invM[i];
+            float w2 = coupledEndpoint
+                ? ComputeCoupledPointInverseMass(n)
+                : invM[j];
+            float wSum = w1 + w2;
+            if (wSum <= 0f) continue;
+
             float C = dist - segLen;
 
             float dl = -(C + alpha * lambdaDist[i]) / (wSum + alpha);
+            if (coupledEndpoint)
+            {
+                float newLambda = Mathf.Min(0f, lambdaDist[i] + dl);
+                dl = newLambda - lambdaDist[i];
+            }
 
             Vector3 corr = dl * n;
             if (w1 > 0f) x[i] -= w1 * corr;
@@ -679,15 +718,10 @@ public class CableXPBD : MonoBehaviour
     // -------------------------
     void SolveBendingCurvatureXPBD(float dt)
     {
-        float compliance = Mathf.Max(0f, bendingCompliance);
-
-        if (usePhysicalEI)
-        {
-            float EI = Mathf.Max(1e-8f, bendingRigidityEI);
-            float ds = Mathf.Max(1e-4f, segLen);
-            // Simple curvature-compliance approximation based on segment length and EI.
-            compliance = (ds * ds * ds * ds) / EI;
-        }
+        float EI = Mathf.Max(1e-8f, bendingRigidityEI);
+        float ds = Mathf.Max(1e-4f, segLen);
+        // Simple curvature-compliance approximation based on segment length and EI.
+        float compliance = (ds * ds * ds * ds) / EI;
 
         float alpha = compliance / Mathf.Max(1e-8f, dt * dt);
 
@@ -1204,6 +1238,92 @@ public class CableXPBD : MonoBehaviour
         return Vector3.forward;
     }
 
+    bool CanCoupleBottomRigidbody()
+    {
+        return coupleBottomRigidbodyInXPBD &&
+               applyTensionToBottom &&
+               bottomRigidbody != null &&
+               bottomAttach != null;
+    }
+
+    void BeginCoupledBottomStep()
+    {
+        coupledBottomImpulse = Vector3.zero;
+        coupledBottomTensionN = 0f;
+        coupledPredictedLinearVelocity = bottomRigidbody.linearVelocity;
+        coupledPredictedAngularVelocity = bottomRigidbody.angularVelocity;
+    }
+
+    Vector3 GetCoupledAttachPointVelocity()
+    {
+        Vector3 lever = bottomAttach.position - bottomRigidbody.worldCenterOfMass;
+        return coupledPredictedLinearVelocity + Vector3.Cross(coupledPredictedAngularVelocity, lever);
+    }
+
+    float ComputeCoupledPointInverseMass(Vector3 direction)
+    {
+        float inverseMass = 1f / Mathf.Max(1e-6f, bottomRigidbody.mass);
+        Vector3 lever = bottomAttach.position - bottomRigidbody.worldCenterOfMass;
+        Vector3 angularAxis = Vector3.Cross(lever, direction);
+        Vector3 angularResponse = MultiplyByWorldInverseInertia(angularAxis);
+        float angularInverseMass = Vector3.Dot(Vector3.Cross(angularResponse, lever), direction);
+        return Mathf.Max(0f, inverseMass + angularInverseMass);
+    }
+
+    Vector3 MultiplyByWorldInverseInertia(Vector3 worldVector)
+    {
+        Quaternion principalRotation = bottomRigidbody.rotation * bottomRigidbody.inertiaTensorRotation;
+        Vector3 local = Quaternion.Inverse(principalRotation) * worldVector;
+        Vector3 inertia = bottomRigidbody.inertiaTensor;
+        local = new Vector3(
+            local.x / Mathf.Max(1e-6f, inertia.x),
+            local.y / Mathf.Max(1e-6f, inertia.y),
+            local.z / Mathf.Max(1e-6f, inertia.z));
+        return principalRotation * local;
+    }
+
+    void AccumulateCoupledBottomImpulse(float substepDt)
+    {
+        if (!CanCoupleBottomRigidbody() || lambdaDist == null || lambdaDist.Length == 0)
+            return;
+
+        int lastSegment = Mathf.Clamp(nodeCount - 2, 0, lambdaDist.Length - 1);
+        float lambda = lambdaDist[lastSegment];
+        if (lambda >= 0f)
+            return;
+
+        Vector3 segment = x[nodeCount - 1] - x[nodeCount - 2];
+        float length = segment.magnitude;
+        if (length <= 1e-8f)
+            return;
+
+        Vector3 impulse = (lambda / Mathf.Max(1e-8f, substepDt)) * (segment / length);
+        float maxImpulse = Mathf.Max(0f, maxTensionNewton) * substepDt;
+        if (maxImpulse > 0f && impulse.sqrMagnitude > maxImpulse * maxImpulse)
+            impulse = impulse.normalized * maxImpulse;
+
+        coupledBottomImpulse += impulse;
+        coupledPredictedLinearVelocity += impulse / Mathf.Max(1e-6f, bottomRigidbody.mass);
+
+        Vector3 lever = bottomAttach.position - bottomRigidbody.worldCenterOfMass;
+        coupledPredictedAngularVelocity += MultiplyByWorldInverseInertia(Vector3.Cross(lever, impulse));
+    }
+
+    void CommitCoupledBottomImpulse(float fixedDeltaTime)
+    {
+        if (!IsFinite(coupledBottomImpulse))
+        {
+            coupledBottomImpulse = Vector3.zero;
+            coupledBottomTensionN = 0f;
+            return;
+        }
+
+        if (coupledBottomImpulse.sqrMagnitude > 1e-12f)
+            bottomRigidbody.AddForceAtPosition(coupledBottomImpulse, bottomAttach.position, ForceMode.Impulse);
+
+        coupledBottomTensionN = coupledBottomImpulse.magnitude / Mathf.Max(1e-8f, fixedDeltaTime);
+    }
+
     Vector3 GetCableLoadApplicationPoint(Rigidbody rb)
     {
         if (!applyForceAtAttachPoint || rb == null || bottomAttach == null)
@@ -1460,8 +1580,6 @@ public class CableXPBD : MonoBehaviour
         bendingRigidityEI = Mathf.Max(0f, bendingRigidityEI);
 
         distanceCompliance = Mathf.Max(0f, distanceCompliance);
-        bendingCompliance = Mathf.Max(0f, bendingCompliance);
-
         slackMeters = Mathf.Max(0f, slackMeters);
         requireNearTautMeters = Mathf.Max(0f, requireNearTautMeters);
 
