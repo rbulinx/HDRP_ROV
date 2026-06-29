@@ -1,6 +1,6 @@
 # Main Camera ROS 2 publisher
 
-`MainCameraCompressedImagePublisher` starts automatically after a scene loads and publishes a UI-free JPEG image from the currently active `MainCamera`.
+`MainCameraCompressedImagePublisher` starts automatically after a scene loads and publishes a HUD-free JPEG image from a capture camera matched to the active `MainCamera`.
 
 ## Unity configuration
 
@@ -15,8 +15,8 @@ Default output:
 - Topic: `/rov/camera/image/compressed`
 - Type: `sensor_msgs/msg/CompressedImage`
 - Size: `1280 x 720`
-- Rate: `20 Hz`
-- JPEG quality: `85`
+- Rate: `5 Hz`
+- JPEG quality: `60`
 - Publisher queue: `1`
 - Frame ID: `main_camera_optical_frame`
 - Vertical flip: disabled

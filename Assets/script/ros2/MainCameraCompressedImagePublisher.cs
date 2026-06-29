@@ -7,9 +7,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Publishes a UI-free copy of the currently active Main Camera as a ROS 2
-/// sensor_msgs/msg/CompressedImage. The capture camera is separate from the
-/// display camera, so this component never changes Camera.targetTexture.
+/// Publishes the rendered MainCamera color buffer as a ROS 2
+/// sensor_msgs/msg/CompressedImage without adding a second rendering camera.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
@@ -25,8 +24,8 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
     [Header("Image")]
     [SerializeField, Min(16)] int width = 1280;
     [SerializeField, Min(16)] int height = 720;
-    [SerializeField, Range(1f, 60f)] float publishRateHz = 20f;
-    [SerializeField, Range(1, 100)] int jpegQuality = 85;
+    [SerializeField, Range(1f, 60f)] float publishRateHz = 5f;
+    [SerializeField, Range(1, 100)] int jpegQuality = 60;
     [SerializeField] bool flipVertically = false;
 
     ROSConnection ros;
@@ -37,7 +36,7 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
     Camera hdrpSettingsSource;
     float nextCaptureTime;
     float nextCameraSearchTime;
-    bool captureScheduled;
+    bool captureRequested;
     bool readbackPending;
     bool publisherRegistered;
 
@@ -75,7 +74,7 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!publisherRegistered || captureScheduled || readbackPending)
+        if (!publisherRegistered || captureRequested || readbackPending)
             return;
 
         if (sourceCamera == null || !sourceCamera.isActiveAndEnabled ||
@@ -93,7 +92,8 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
             return;
 
         nextCaptureTime = Time.unscaledTime + 1f / publishRateHz;
-        CaptureCurrentCamera();
+        UpdateCaptureCameraFromSource();
+        captureRequested = true;
     }
 
     void FindMainCamera()
@@ -129,34 +129,38 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
             name = "ROS2_MainCamera_JPEG_Encoder"
         };
 
-        GameObject cameraObject = new GameObject("ROS2 Capture Camera");
+        GameObject cameraObject = new GameObject("ROS2 MainCamera Capture Camera");
         cameraObject.transform.SetParent(transform, false);
         captureCamera = cameraObject.AddComponent<Camera>();
         captureCamera.enabled = false;
+        captureCamera.targetTexture = captureTexture;
+        captureRequested = false;
     }
 
-    void CaptureCurrentCamera()
+    void UpdateCaptureCameraFromSource()
     {
         if (captureCamera == null || captureTexture == null || sourceCamera == null)
             return;
 
         captureCamera.CopyFrom(sourceCamera);
-        captureCamera.enabled = false;
         captureCamera.targetTexture = captureTexture;
-        CopyHdrpCameraSettingsWhenSourceChanges();
+        int uiLayer = LayerMask.NameToLayer("UI");
+        captureCamera.cullingMask = uiLayer >= 0
+            ? sourceCamera.cullingMask & ~(1 << uiLayer)
+            : sourceCamera.cullingMask;
+        captureCamera.aspect = (float)width / height;
         captureCamera.transform.SetPositionAndRotation(
             sourceCamera.transform.position,
             sourceCamera.transform.rotation);
+        CopyHdrpCameraSettingsWhenSourceChanges();
 
-        // Let HDRP render this camera normally. The endCameraRendering callback
-        // starts the readback, avoiding Camera.Render(), which is fragile in SRP.
-        captureScheduled = true;
-        captureCamera.enabled = true;
+        if (!captureCamera.enabled)
+            captureCamera.enabled = true;
     }
 
     void CopyHdrpCameraSettingsWhenSourceChanges()
     {
-        if (sourceCamera == hdrpSettingsSource)
+        if (sourceCamera == hdrpSettingsSource || captureCamera == null)
             return;
 
         hdrpSettingsSource = sourceCamera;
@@ -169,18 +173,16 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
         if (captureData == null)
             captureData = captureCamera.gameObject.AddComponent(dataType);
 
-        // Keep HDRP frame settings, post-processing and volume options aligned
-        // without depending on version-specific HDAdditionalCameraData APIs.
         JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(sourceData), captureData);
     }
 
     void OnEndCameraRendering(ScriptableRenderContext context, Camera renderedCamera)
     {
-        if (!captureScheduled || renderedCamera != captureCamera)
+        if (!captureRequested || readbackPending || renderedCamera != captureCamera ||
+            captureTexture == null)
             return;
 
-        captureCamera.enabled = false;
-        captureScheduled = false;
+        captureRequested = false;
 
         readbackPending = true;
         AsyncGPUReadback.Request(
@@ -256,7 +258,7 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
     void OnDisable()
     {
         RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
-        captureScheduled = false;
+        captureRequested = false;
         sourceCamera = null;
         hdrpSettingsSource = null;
         ReleaseCaptureResources();
