@@ -24,6 +24,8 @@ public class ROVBuoyancyStability : MonoBehaviour
     public WaterSurface waterSurface;
     public float fallbackWaterSurfaceY = 0f;
     public float fullBuoyancyDepthMeters = 0.15f;
+    public bool filterWaterSurfaceHeight = true;
+    public float waterSurfaceLowPassTimeSeconds = 3f;
     public float waterSurfaceQueryError = 0.01f;
     public int waterSurfaceQueryMaxIterations = 8;
 
@@ -34,6 +36,8 @@ public class ROVBuoyancyStability : MonoBehaviour
     WaterSearchParameters waterSearchParameters;
     WaterSearchResult waterSearchResult;
     bool hasWaterSearchCandidate;
+    bool hasFilteredWaterSurfaceY;
+    float filteredWaterSurfaceY;
 
     void Awake()
     {
@@ -48,6 +52,7 @@ public class ROVBuoyancyStability : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         fullBuoyancyDepthMeters = Mathf.Max(0.001f, fullBuoyancyDepthMeters);
+        waterSurfaceLowPassTimeSeconds = Mathf.Max(0f, waterSurfaceLowPassTimeSeconds);
         waterSurfaceQueryError = Mathf.Max(0.001f, waterSurfaceQueryError);
         waterSurfaceQueryMaxIterations = Mathf.Max(1, waterSurfaceQueryMaxIterations);
         ApplyRigidbodySettings();
@@ -111,9 +116,34 @@ public class ROVBuoyancyStability : MonoBehaviour
         if (!limitBuoyancyToWaterSurface)
             return 1f;
 
-        float surfaceY = GetWaterSurfaceY(rb.position);
+        float surfaceY = GetFilteredWaterSurfaceY(rb.position);
         float depth = surfaceY - rb.position.y;
         return Mathf.Clamp01(depth / Mathf.Max(0.001f, fullBuoyancyDepthMeters));
+    }
+
+    float GetFilteredWaterSurfaceY(Vector3 worldPosition)
+    {
+        float rawSurfaceY = GetWaterSurfaceY(worldPosition);
+        if (!filterWaterSurfaceHeight)
+        {
+            filteredWaterSurfaceY = rawSurfaceY;
+            hasFilteredWaterSurfaceY = true;
+            return rawSurfaceY;
+        }
+
+        if (!hasFilteredWaterSurfaceY)
+        {
+            filteredWaterSurfaceY = rawSurfaceY;
+            hasFilteredWaterSurfaceY = true;
+            return filteredWaterSurfaceY;
+        }
+
+        float tau = Mathf.Max(0f, waterSurfaceLowPassTimeSeconds);
+        float alpha = tau <= 0f
+            ? 1f
+            : Mathf.Clamp01(1f - Mathf.Exp(-Mathf.Max(0.001f, Time.fixedDeltaTime) / tau));
+        filteredWaterSurfaceY = Mathf.Lerp(filteredWaterSurfaceY, rawSurfaceY, alpha);
+        return filteredWaterSurfaceY;
     }
 
     float GetWaterSurfaceY(Vector3 worldPosition)
@@ -132,6 +162,7 @@ public class ROVBuoyancyStability : MonoBehaviour
 
         waterSurface = FindFirstObjectByType<WaterSurface>();
         hasWaterSearchCandidate = false;
+        hasFilteredWaterSurfaceY = false;
     }
 
     bool TryGetWaterSurfaceY(Vector3 worldPosition, out float surfaceY)

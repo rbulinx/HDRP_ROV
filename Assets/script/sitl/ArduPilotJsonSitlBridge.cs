@@ -93,19 +93,22 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     public float quadraticDragCoefficient = 8f;
     public float angularDragCoefficient = 5f;
     public float fluidDensityKgPerCubicMeter = 997f;
+    public float defaultHorizontalThrusterMaxN = 100f;
+    public float defaultVerticalThrusterMaxN = 200f;
     public SitlThrusterSpec[] sitlThrusters = Array.Empty<SitlThrusterSpec>();
 
     [Header("Water Current")]
     public bool applyWaterCurrent = false;
+    public bool autoApplyWaterCurrentWhenCurrentVelocityIsNonZero = true;
     public Vector3 currentVelocity = Vector3.zero;
     [HideInInspector] public bool logWaterCurrentForces;
     [HideInInspector] public float waterCurrentLogIntervalSeconds = 1f;
 
     [Header("Water Surface Forces")]
     public bool applyWaterSurfaceForces = true;
-    public float waterSurfaceForceMaxDepthMeters = 1.2f;
-    public float waterSurfaceDesiredSubmergeMeters = 0.12f;
-    public float waterSurfaceVerticalSpringNPerM = 240f;
+    public float waterSurfaceDesiredSubmergeMeters = 0.5f;
+    public bool holdDepthRelativeToWaterSurface = false;
+    public float waterSurfaceVerticalSpringNPerM = 100f;
     public float waterSurfaceVerticalDampingNPerMS = 280f;
     public bool applyWaterSurfaceTiltForces = true;
     public float waterSurfaceTiltSpringNPerM = 50f;
@@ -114,8 +117,29 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     public float waterSurfaceClampBelowSurfaceMeters = 0.05f;
     public float waterSurfaceClampGuardMeters = 0.08f;
     public bool zeroUpwardVelocityOnWaterSurfaceClamp = true;
+    public bool suppressWaterSurfaceForcesWhileDiving = false;
+    public float waterSurfaceDiveForceThresholdN = 0.5f;
     public bool lowPassWaterSurfaceForces = true;
-    public float waterSurfaceLowPassTimeSeconds = 3.0f;
+    public float waterSurfaceLowPassTimeSeconds = 2.0f;
+    public bool autoTuneWaveResponseFromOceanWind = true;
+    public float oceanWindReferenceSpeedKmh = 30f;
+    public float minAutoWaveLengthMeters = 4f;
+    public float maxAutoWaveLengthMeters = 24f;
+    public float minAutoWaterParticleMotionScale = 0.4f;
+    public float maxAutoWaterParticleMotionScale = 2.5f;
+    public float waterSurfaceWaveLengthMeters = 12f;
+    public float waterParticleMotionScale = 2f;
+    public float waterParticleAccelerationScale = 1.2f;
+    public float maxWaterParticleVerticalForceN = 800f;
+    public Vector3 waterParticleHorizontalDirection = Vector3.forward;
+    public float waterParticlePrimaryDirectionWeight = 1f;
+    public float waterParticleCrossDirectionWeight = 0.2f;
+    public float waterParticleObliqueDirectionWeight = 0.1f;
+    public float waterSurfaceWavePeriodSeconds = 4f;
+    public float waterParticleHorizontalMotionScale = 0.5f;
+    public float waterParticleHorizontalDampingNPerMS = 120f;
+    public float maxWaterParticleHorizontalForceN = 300f;
+    public float minimumWaterSurfaceWaveInfluence = 0f;
     public Vector3[] waterSurfaceLocalSamplePoints =
     {
         new Vector3(0.75f, 0f, 0.75f),
@@ -277,12 +301,13 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     float[] horizontalOutputs = Array.Empty<float>();
     float[] verticalOutputs = Array.Empty<float>();
     Vector3[] waterSurfaceWorldSamplePoints = Array.Empty<Vector3>();
-    float[] rawWaterSurfaceSampleY = Array.Empty<float>();
     float[] filteredWaterSurfaceSampleY = Array.Empty<float>();
     bool[] validWaterSurfaceSampleY = Array.Empty<bool>();
     bool hasFilteredWaterSurfaceSamples;
-    float filteredWaterSurfaceCenterY;
-    bool hasFilteredWaterSurfaceCenter;
+    float lastWaterSurfaceWaveDisplacementY;
+    bool hasLastWaterSurfaceWaveDisplacementY;
+    float lastWaterParticleVelocityY;
+    bool hasLastWaterParticleVelocityY;
     readonly JsonOutputPacket outputPacket = new JsonOutputPacket();
     WaterSearchParameters waterSearchParameters;
     WaterSearchResult waterSearchResult;
@@ -401,7 +426,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void ApplyWaterCurrentForces()
     {
-        if (rb == null || !applyWaterCurrent)
+        if (rb == null || !IsWaterCurrentActive())
             return;
 
 #if UNITY_6000_0_OR_NEWER
@@ -425,14 +450,44 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         }
     }
 
+    bool IsWaterCurrentActive()
+    {
+        return applyWaterCurrent
+            || (autoApplyWaterCurrentWhenCurrentVelocityIsNonZero && currentVelocity.sqrMagnitude > 1e-8f);
+    }
+
+    void ApplyOceanWindWaveAutoTune()
+    {
+        if (!autoTuneWaveResponseFromOceanWind || waterSurface == null)
+            return;
+
+        float windRatio = Mathf.Clamp01(waterSurface.largeWindSpeed / Mathf.Max(0.001f, oceanWindReferenceSpeedKmh));
+        float lengthRatio = windRatio * windRatio;
+        waterSurfaceWaveLengthMeters = Mathf.Lerp(minAutoWaveLengthMeters, maxAutoWaveLengthMeters, lengthRatio);
+        waterParticleMotionScale = Mathf.Lerp(minAutoWaterParticleMotionScale, maxAutoWaterParticleMotionScale, windRatio);
+        waterSurfaceWavePeriodSeconds = Mathf.Sqrt(
+            Mathf.PI * 2f * waterSurfaceWaveLengthMeters / Mathf.Max(0.001f, gravityMetersPerSecondSquared));
+
+        float orientationRadians = waterSurface.largeOrientationValue * Mathf.Deg2Rad;
+        waterParticleHorizontalDirection = new Vector3(Mathf.Sin(orientationRadians), 0f, Mathf.Cos(orientationRadians));
+    }
+
     void ApplyWaterSurfaceForces()
     {
         if (rb == null || !applyWaterSurfaceForces)
             return;
 
+        if (ShouldSuppressWaterSurfaceForcesForDive())
+        {
+            ResetFilteredWaterSurface();
+            return;
+        }
+
         ResolveWaterSurfaceIfNeeded();
         if (waterSurface == null)
             return;
+
+        ApplyOceanWindWaveAutoTune();
 
         Vector3[] samplePoints = GetWaterSurfaceSamplePoints();
         if (samplePoints == null || samplePoints.Length == 0)
@@ -450,7 +505,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             }
 
             validWaterSurfaceSampleY[i] = true;
-            rawWaterSurfaceSampleY[i] = sampleSurfaceY;
             float filteredSurfaceY = FilterWaterSurfaceSampleY(i, sampleSurfaceY);
             averageSurfaceY += filteredSurfaceY;
             validCount++;
@@ -463,14 +517,12 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             hasFilteredWaterSurfaceSamples = true;
 
         averageSurfaceY /= validCount;
-        float depthCenter = averageSurfaceY - rb.position.y;
+        float meanSurfaceY = waterSurfaceY;
+        float depthCenter = meanSurfaceY - rb.position.y;
         if (depthCenter <= 0f)
             return;
 
-        float maxDepth = Mathf.Max(0.001f, waterSurfaceForceMaxDepthMeters);
-        float fade = 1f - Mathf.Clamp01(depthCenter / maxDepth);
-        if (fade <= 0f)
-            return;
+        float waveInfluence = GetWaterSurfaceWaveInfluence(depthCenter);
 
         if (applyWaterSurfaceTiltForces)
         {
@@ -483,9 +535,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
                 if (i >= filteredWaterSurfaceSampleY.Length || !validWaterSurfaceSampleY[i])
                     continue;
 
-                float surfaceDelta = filteredWaterSurfaceSampleY[i] - averageSurfaceY;
+                float surfaceDelta = (filteredWaterSurfaceSampleY[i] - averageSurfaceY) * waveInfluence;
                 float pointVerticalVelocity = rb.GetPointVelocity(samplePoints[i]).y;
-                float pointForce = (surfaceDelta * tiltSpring - pointVerticalVelocity * tiltDamping) * fade;
+                float pointForce = (surfaceDelta * tiltSpring - pointVerticalVelocity * tiltDamping) * waveInfluence;
                 if (maxForce > 0f)
                     pointForce = Mathf.Clamp(pointForce, -maxForce, maxForce);
 
@@ -498,15 +550,130 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 #else
         Vector3 velocity = rb.velocity;
 #endif
-        float hardLimitY = averageSurfaceY - Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
-        float targetY = averageSurfaceY - Mathf.Max(0f, waterSurfaceDesiredSubmergeMeters);
-        float guard = Mathf.Max(0f, waterSurfaceClampGuardMeters);
-        if (guard > 0f)
-            targetY = Mathf.Min(targetY, hardLimitY - guard);
+        float effectiveSurfaceY = meanSurfaceY + (averageSurfaceY - meanSurfaceY) * waveInfluence;
+        EstimateWaterParticleVerticalKinematics(
+            averageSurfaceY - meanSurfaceY,
+            waveInfluence,
+            out float waterParticleVelocityY,
+            out float waterParticleAccelerationY);
+        float waterParticleAccelerationForce = rb.mass * waterParticleAccelerationY * Mathf.Max(0f, waterParticleAccelerationScale);
+        float verticalForce;
+        if (holdDepthRelativeToWaterSurface)
+        {
+            float hardLimitY = effectiveSurfaceY - Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
+            float targetY = effectiveSurfaceY - Mathf.Max(0f, waterSurfaceDesiredSubmergeMeters);
+            float guard = Mathf.Max(0f, waterSurfaceClampGuardMeters);
+            if (guard > 0f)
+                targetY = Mathf.Min(targetY, hardLimitY - guard);
 
-        float verticalForce = ((targetY - rb.position.y) * Mathf.Max(0f, waterSurfaceVerticalSpringNPerM)
-            - velocity.y * Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS)) * fade;
+            verticalForce = (targetY - rb.position.y) * Mathf.Max(0f, waterSurfaceVerticalSpringNPerM)
+                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS)
+                + waterParticleAccelerationForce;
+        }
+        else
+        {
+            float waveDisplacement = effectiveSurfaceY - meanSurfaceY;
+            verticalForce = (waveDisplacement * Mathf.Max(0f, waterSurfaceVerticalSpringNPerM)
+                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS)
+                + waterParticleAccelerationForce);
+        }
+
+        float maxVerticalForce = Mathf.Max(0f, maxWaterParticleVerticalForceN);
+        if (maxVerticalForce > 0f)
+            verticalForce = Mathf.Clamp(verticalForce, -maxVerticalForce, maxVerticalForce);
+
         rb.AddForce(Vector3.up * verticalForce, ForceMode.Force);
+        ApplyWaterParticleHorizontalOrbitalForce(averageSurfaceY - meanSurfaceY, waveInfluence, velocity);
+    }
+
+    void ApplyWaterParticleHorizontalOrbitalForce(float surfaceWaveDisplacementY, float waveInfluence, Vector3 velocity)
+    {
+        Vector3 direction = GetWaterParticleHorizontalDirection();
+        if (direction.sqrMagnitude <= 1e-8f)
+            return;
+
+        float angularFrequency = Mathf.PI * 2f / Mathf.Max(0.001f, waterSurfaceWavePeriodSeconds);
+        float targetVelocityAmplitude = surfaceWaveDisplacementY
+            * angularFrequency
+            * waveInfluence
+            * Mathf.Max(0f, waterParticleMotionScale)
+            * Mathf.Max(0f, waterParticleHorizontalMotionScale);
+
+        Vector3 force = Vector3.zero;
+        force += CalculateWaterParticleDirectionalForce(direction, targetVelocityAmplitude, Mathf.Max(0f, waterParticlePrimaryDirectionWeight), velocity);
+        force += CalculateWaterParticleDirectionalForce(new Vector3(-direction.z, 0f, direction.x), targetVelocityAmplitude, Mathf.Max(0f, waterParticleCrossDirectionWeight), velocity);
+        force += CalculateWaterParticleDirectionalForce((direction + new Vector3(direction.z, 0f, -direction.x)).normalized, targetVelocityAmplitude, Mathf.Max(0f, waterParticleObliqueDirectionWeight), velocity);
+
+        float maxForce = Mathf.Max(0f, maxWaterParticleHorizontalForceN);
+        if (maxForce > 0f && force.sqrMagnitude > maxForce * maxForce)
+            force = force.normalized * maxForce;
+
+        rb.AddForce(force, ForceMode.Force);
+    }
+
+    Vector3 CalculateWaterParticleDirectionalForce(Vector3 direction, float targetVelocityAmplitude, float weight, Vector3 velocity)
+    {
+        if (weight <= 0f || direction.sqrMagnitude <= 1e-8f)
+            return Vector3.zero;
+
+        direction = direction.normalized;
+        float targetVelocity = targetVelocityAmplitude * weight;
+        if (IsWaterCurrentActive())
+            targetVelocity += Vector3.Dot(currentVelocity, direction);
+
+        float currentAlongDirection = Vector3.Dot(velocity, direction);
+        float force = (targetVelocity - currentAlongDirection) * Mathf.Max(0f, waterParticleHorizontalDampingNPerMS);
+        return direction * force;
+    }
+
+    Vector3 GetWaterParticleHorizontalDirection()
+    {
+        Vector3 direction = waterParticleHorizontalDirection;
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 1e-8f)
+            direction = Vector3.forward;
+
+        return direction.normalized;
+    }
+
+    void EstimateWaterParticleVerticalKinematics(
+        float surfaceWaveDisplacementY,
+        float waveInfluence,
+        out float velocityY,
+        out float accelerationY)
+    {
+        float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
+        if (!hasLastWaterSurfaceWaveDisplacementY)
+        {
+            lastWaterSurfaceWaveDisplacementY = surfaceWaveDisplacementY;
+            hasLastWaterSurfaceWaveDisplacementY = true;
+            velocityY = 0f;
+            accelerationY = 0f;
+            return;
+        }
+
+        float surfaceWaveVelocityY = (surfaceWaveDisplacementY - lastWaterSurfaceWaveDisplacementY) / dt;
+        lastWaterSurfaceWaveDisplacementY = surfaceWaveDisplacementY;
+        velocityY = surfaceWaveVelocityY * waveInfluence * Mathf.Max(0f, waterParticleMotionScale);
+
+        if (!hasLastWaterParticleVelocityY)
+        {
+            lastWaterParticleVelocityY = velocityY;
+            hasLastWaterParticleVelocityY = true;
+            accelerationY = 0f;
+            return;
+        }
+
+        accelerationY = (velocityY - lastWaterParticleVelocityY) / dt;
+        lastWaterParticleVelocityY = velocityY;
+    }
+
+    float GetWaterSurfaceWaveInfluence(float depthMeters)
+    {
+        float minInfluence = Mathf.Clamp01(minimumWaterSurfaceWaveInfluence);
+        float wavelength = Mathf.Max(0.001f, waterSurfaceWaveLengthMeters);
+        float influence = Mathf.Exp(-Mathf.PI * 2f * Mathf.Max(0f, depthMeters) / wavelength);
+        return Mathf.Max(minInfluence, Mathf.Clamp01(influence));
     }
 
     public void StartBridge()
@@ -698,6 +865,47 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         }
 
         return 0f;
+    }
+
+    float GetCommandedWorldVerticalThrusterForce()
+    {
+        if (sitlThrusters == null)
+            return 0f;
+
+        float verticalForce = 0f;
+        float scale = Mathf.Max(0f, directThrustScale);
+        for (int i = 0; i < sitlThrusters.Length; i++)
+        {
+            SitlThrusterSpec thruster = sitlThrusters[i];
+            if (thruster == null)
+                continue;
+
+            float command = Mathf.Clamp(GetMappedThrusterOutput(thruster.servoChannel), -1f, 1f);
+            if (Mathf.Abs(command) <= Mathf.Max(0f, forceOutputDeadzone))
+                continue;
+
+            Vector3 localDirection = thruster.localDirection;
+            if (localDirection.sqrMagnitude <= 1e-8f)
+                continue;
+
+            float limit = command >= 0f
+                ? Mathf.Max(0f, thruster.maxForwardThrustN)
+                : Mathf.Max(0f, thruster.maxReverseThrustN);
+            float thrust = command * limit * scale;
+            if (Mathf.Abs(thrust) <= 1e-4f)
+                continue;
+
+            Vector3 worldDirection = transform.TransformDirection(localDirection.normalized);
+            verticalForce += worldDirection.y * thrust;
+        }
+
+        return verticalForce;
+    }
+
+    bool ShouldSuppressWaterSurfaceForcesForDive()
+    {
+        return suppressWaterSurfaceForcesWhileDiving
+            && GetCommandedWorldVerticalThrusterForce() < -Mathf.Max(0f, waterSurfaceDiveForceThresholdN);
     }
 
     bool ShouldLogServoPacket()
@@ -1422,16 +1630,17 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         const float y = -0.045f;
         const float z = 0.20f;
         const float verticalX = 0.12f;
-        const float thrust = 49f;
+        float horizontalThrust = Mathf.Max(0f, defaultHorizontalThrusterMaxN);
+        float verticalThrust = Mathf.Max(0f, defaultVerticalThrusterMaxN);
 
         return new[]
         {
-            BuildSitlThrusterSpec("M1 Front Right", GetOneBasedChannel(horizontalServoChannels, 0), new Vector3( x, y,  z), new Vector3( 1f, 0f, -1f), thrust, thrust),
-            BuildSitlThrusterSpec("M2 Front Left",  GetOneBasedChannel(horizontalServoChannels, 1), new Vector3(-x, y,  z), new Vector3(-1f, 0f, -1f), thrust, thrust),
-            BuildSitlThrusterSpec("M3 Rear Right",  GetOneBasedChannel(horizontalServoChannels, 2), new Vector3( x, y, -z), new Vector3( 1f, 0f,  1f), thrust, thrust),
-            BuildSitlThrusterSpec("M4 Rear Left",   GetOneBasedChannel(horizontalServoChannels, 3), new Vector3(-x, y, -z), new Vector3(-1f, 0f,  1f), thrust, thrust),
-            BuildSitlThrusterSpec("M5 Left Vertical",  GetOneBasedChannel(verticalServoChannels, 0), new Vector3(-verticalX, 0f, 0f), Vector3.up, thrust, thrust),
-            BuildSitlThrusterSpec("M6 Right Vertical", GetOneBasedChannel(verticalServoChannels, 1), new Vector3( verticalX, 0f, 0f), Vector3.up, thrust, thrust),
+            BuildSitlThrusterSpec("M1 Front Right", GetOneBasedChannel(horizontalServoChannels, 0), new Vector3( x, y,  z), new Vector3( 1f, 0f, -1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M2 Front Left",  GetOneBasedChannel(horizontalServoChannels, 1), new Vector3(-x, y,  z), new Vector3(-1f, 0f, -1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M3 Rear Right",  GetOneBasedChannel(horizontalServoChannels, 2), new Vector3( x, y, -z), new Vector3( 1f, 0f,  1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M4 Rear Left",   GetOneBasedChannel(horizontalServoChannels, 3), new Vector3(-x, y, -z), new Vector3(-1f, 0f,  1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M5 Left Vertical",  GetOneBasedChannel(verticalServoChannels, 0), new Vector3(-verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
+            BuildSitlThrusterSpec("M6 Right Vertical", GetOneBasedChannel(verticalServoChannels, 1), new Vector3( verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
         };
     }
 
@@ -1468,9 +1677,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         rb.mass = Mathf.Max(0.001f, vehicleMassKg);
 #if UNITY_6000_0_OR_NEWER
-        rb.linearDamping = applyWaterCurrent ? 0f : Mathf.Max(0f, linearDragCoefficient);
+        rb.linearDamping = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, linearDragCoefficient);
 #else
-        rb.drag = applyWaterCurrent ? 0f : Mathf.Max(0f, linearDragCoefficient);
+        rb.drag = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, linearDragCoefficient);
 #endif
         rb.angularDamping = Mathf.Max(0f, angularDragCoefficient);
     }
@@ -1552,8 +1761,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     void EnsureWaterSurfaceSampleBuffers(int count)
     {
         count = Mathf.Max(0, count);
-        if (rawWaterSurfaceSampleY == null || rawWaterSurfaceSampleY.Length != count)
-            rawWaterSurfaceSampleY = new float[count];
         if (filteredWaterSurfaceSampleY == null || filteredWaterSurfaceSampleY.Length != count)
         {
             filteredWaterSurfaceSampleY = new float[count];
@@ -1583,26 +1790,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         return filteredWaterSurfaceSampleY[index];
     }
 
-    float FilterWaterSurfaceCenterY(float rawSurfaceY)
-    {
-        if (!lowPassWaterSurfaceForces || waterSurfaceLowPassTimeSeconds <= 0f)
-        {
-            filteredWaterSurfaceCenterY = rawSurfaceY;
-            hasFilteredWaterSurfaceCenter = true;
-            return rawSurfaceY;
-        }
-
-        if (!hasFilteredWaterSurfaceCenter)
-        {
-            filteredWaterSurfaceCenterY = rawSurfaceY;
-            hasFilteredWaterSurfaceCenter = true;
-            return rawSurfaceY;
-        }
-
-        filteredWaterSurfaceCenterY = Mathf.Lerp(filteredWaterSurfaceCenterY, rawSurfaceY, GetWaterSurfaceLowPassAlpha());
-        return filteredWaterSurfaceCenterY;
-    }
-
     float GetWaterSurfaceLowPassAlpha()
     {
         float tau = Mathf.Max(0.001f, waterSurfaceLowPassTimeSeconds);
@@ -1613,7 +1800,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     void ResetFilteredWaterSurface()
     {
         hasFilteredWaterSurfaceSamples = false;
-        hasFilteredWaterSurfaceCenter = false;
+        hasLastWaterSurfaceWaveDisplacementY = false;
+        hasLastWaterParticleVelocityY = false;
         if (validWaterSurfaceSampleY != null)
             Array.Clear(validWaterSurfaceSampleY, 0, validWaterSurfaceSampleY.Length);
     }
@@ -1621,6 +1809,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     void EnforceWaterSurfaceNoBreachClamp()
     {
         if (rb == null || !applyWaterSurfaceForces)
+            return;
+
+        if (ShouldSuppressWaterSurfaceForcesForDive())
             return;
 
         ResolveWaterSurfaceIfNeeded();
@@ -2100,6 +2291,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         quadraticDragCoefficient = Mathf.Max(0f, quadraticDragCoefficient);
         angularDragCoefficient = Mathf.Max(0f, angularDragCoefficient);
         fluidDensityKgPerCubicMeter = Mathf.Max(0f, fluidDensityKgPerCubicMeter);
+        defaultHorizontalThrusterMaxN = Mathf.Max(0f, defaultHorizontalThrusterMaxN);
+        defaultVerticalThrusterMaxN = Mathf.Max(0f, defaultVerticalThrusterMaxN);
         currentVelocity = new Vector3(
             float.IsFinite(currentVelocity.x) ? currentVelocity.x : 0f,
             float.IsFinite(currentVelocity.y) ? currentVelocity.y : 0f,
@@ -2173,7 +2366,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         waterSurfaceY = float.IsFinite(waterSurfaceY) ? waterSurfaceY : 0f;
         waterQueryError = Mathf.Max(0.001f, waterQueryError);
         waterQueryMaxIterations = Mathf.Max(1, waterQueryMaxIterations);
-        waterSurfaceForceMaxDepthMeters = Mathf.Max(0.001f, waterSurfaceForceMaxDepthMeters);
         waterSurfaceDesiredSubmergeMeters = Mathf.Max(0f, waterSurfaceDesiredSubmergeMeters);
         waterSurfaceVerticalSpringNPerM = Mathf.Max(0f, waterSurfaceVerticalSpringNPerM);
         waterSurfaceVerticalDampingNPerMS = Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS);
@@ -2182,7 +2374,25 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         maxWaterSurfaceForcePerPointN = Mathf.Max(0f, maxWaterSurfaceForcePerPointN);
         waterSurfaceClampBelowSurfaceMeters = Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
         waterSurfaceClampGuardMeters = Mathf.Max(0f, waterSurfaceClampGuardMeters);
+        waterSurfaceDiveForceThresholdN = Mathf.Max(0f, waterSurfaceDiveForceThresholdN);
         waterSurfaceLowPassTimeSeconds = Mathf.Max(0f, waterSurfaceLowPassTimeSeconds);
+        oceanWindReferenceSpeedKmh = Mathf.Max(0.001f, oceanWindReferenceSpeedKmh);
+        minAutoWaveLengthMeters = Mathf.Max(0.001f, minAutoWaveLengthMeters);
+        maxAutoWaveLengthMeters = Mathf.Max(minAutoWaveLengthMeters, maxAutoWaveLengthMeters);
+        minAutoWaterParticleMotionScale = Mathf.Max(0f, minAutoWaterParticleMotionScale);
+        maxAutoWaterParticleMotionScale = Mathf.Max(minAutoWaterParticleMotionScale, maxAutoWaterParticleMotionScale);
+        waterSurfaceWaveLengthMeters = Mathf.Max(0.001f, waterSurfaceWaveLengthMeters);
+        waterParticleMotionScale = Mathf.Max(0f, waterParticleMotionScale);
+        waterParticleAccelerationScale = Mathf.Max(0f, waterParticleAccelerationScale);
+        maxWaterParticleVerticalForceN = Mathf.Max(0f, maxWaterParticleVerticalForceN);
+        waterSurfaceWavePeriodSeconds = Mathf.Max(0.001f, waterSurfaceWavePeriodSeconds);
+        waterParticlePrimaryDirectionWeight = Mathf.Max(0f, waterParticlePrimaryDirectionWeight);
+        waterParticleCrossDirectionWeight = Mathf.Max(0f, waterParticleCrossDirectionWeight);
+        waterParticleObliqueDirectionWeight = Mathf.Max(0f, waterParticleObliqueDirectionWeight);
+        waterParticleHorizontalMotionScale = Mathf.Max(0f, waterParticleHorizontalMotionScale);
+        waterParticleHorizontalDampingNPerMS = Mathf.Max(0f, waterParticleHorizontalDampingNPerMS);
+        maxWaterParticleHorizontalForceN = Mathf.Max(0f, maxWaterParticleHorizontalForceN);
+        minimumWaterSurfaceWaveInfluence = Mathf.Clamp01(minimumWaterSurfaceWaveInfluence);
         if (waterSurfaceLocalSamplePoints == null)
             waterSurfaceLocalSamplePoints = Array.Empty<Vector3>();
         alwaysSendGeographicPositionForQgc = false;
