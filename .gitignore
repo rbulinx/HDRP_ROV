@@ -43,3 +43,7 @@ desktop.ini
 /.dotnet-cli/
 /generated_graphs/
 /Recordings/
+/Assets/_Recovery/
+/Assets/_Recovery.meta
+/Assets/Prefab/Unused/
+/Assets/Prefab/Unused.meta

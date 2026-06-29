@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.HighDefinition;
 
 [RequireComponent(typeof(Rigidbody))]
 public class ROVBuoyancyStability : MonoBehaviour
@@ -19,21 +20,36 @@ public class ROVBuoyancyStability : MonoBehaviour
     public bool useUnityGravity = true;
     public float buoyancyScale = 1.0f;
     public float verticalDampingNPerMps = 240f;
+    public bool limitBuoyancyToWaterSurface = true;
+    public WaterSurface waterSurface;
+    public float fallbackWaterSurfaceY = 0f;
+    public float fullBuoyancyDepthMeters = 0.15f;
+    public float waterSurfaceQueryError = 0.01f;
+    public int waterSurfaceQueryMaxIterations = 8;
 
     [Header("Rotation Damping")]
     public float rollPitchAngularDamping = 0.9f;
 
     Rigidbody rb;
+    WaterSearchParameters waterSearchParameters;
+    WaterSearchResult waterSearchResult;
+    bool hasWaterSearchCandidate;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        waterSearchParameters = new WaterSearchParameters();
+        waterSearchResult = new WaterSearchResult();
+        ResolveWaterSurfaceIfNeeded();
         ApplyRigidbodySettings();
     }
 
     void OnValidate()
     {
         rb = GetComponent<Rigidbody>();
+        fullBuoyancyDepthMeters = Mathf.Max(0.001f, fullBuoyancyDepthMeters);
+        waterSurfaceQueryError = Mathf.Max(0.001f, waterSurfaceQueryError);
+        waterSurfaceQueryMaxIterations = Mathf.Max(1, waterSurfaceQueryMaxIterations);
         ApplyRigidbodySettings();
     }
 
@@ -46,7 +62,8 @@ public class ROVBuoyancyStability : MonoBehaviour
         if (gravityMagnitude <= 1e-6f)
             return;
 
-        Vector3 buoyancyForce = -gravity.normalized * (rb.mass * gravityMagnitude * Mathf.Max(0f, buoyancyScale));
+        float buoyancyFactor = Mathf.Max(0f, buoyancyScale) * GetWaterSurfaceBuoyancyFactor();
+        Vector3 buoyancyForce = -gravity.normalized * (rb.mass * gravityMagnitude * buoyancyFactor);
 
         if (useMetacentricRestoringTorque)
         {
@@ -59,10 +76,10 @@ public class ROVBuoyancyStability : MonoBehaviour
             rb.AddForceAtPosition(buoyancyForce, buoyancyPoint, ForceMode.Force);
         }
 
-        if (verticalDampingNPerMps > 0f)
+        if (verticalDampingNPerMps > 0f && buoyancyFactor > 0f)
         {
             float verticalSpeed = Vector3.Dot(rb.linearVelocity, Vector3.up);
-            rb.AddForce(Vector3.up * (-verticalSpeed * verticalDampingNPerMps), ForceMode.Force);
+            rb.AddForce(Vector3.up * (-verticalSpeed * verticalDampingNPerMps * Mathf.Clamp01(buoyancyFactor)), ForceMode.Force);
         }
 
         if (rollPitchAngularDamping > 0f)
@@ -87,6 +104,59 @@ public class ROVBuoyancyStability : MonoBehaviour
     Vector3 GetEffectiveCenterOfBuoyancyLocal()
     {
         return centerOfBuoyancyLocalOffset;
+    }
+
+    float GetWaterSurfaceBuoyancyFactor()
+    {
+        if (!limitBuoyancyToWaterSurface)
+            return 1f;
+
+        float surfaceY = GetWaterSurfaceY(rb.position);
+        float depth = surfaceY - rb.position.y;
+        return Mathf.Clamp01(depth / Mathf.Max(0.001f, fullBuoyancyDepthMeters));
+    }
+
+    float GetWaterSurfaceY(Vector3 worldPosition)
+    {
+        ResolveWaterSurfaceIfNeeded();
+        if (waterSurface != null && TryGetWaterSurfaceY(worldPosition, out float surfaceY))
+            return surfaceY;
+
+        return fallbackWaterSurfaceY;
+    }
+
+    void ResolveWaterSurfaceIfNeeded()
+    {
+        if (waterSurface != null)
+            return;
+
+        waterSurface = FindFirstObjectByType<WaterSurface>();
+        hasWaterSearchCandidate = false;
+    }
+
+    bool TryGetWaterSurfaceY(Vector3 worldPosition, out float surfaceY)
+    {
+        if (!hasWaterSearchCandidate)
+        {
+            waterSearchResult.candidateLocationWS = worldPosition;
+            hasWaterSearchCandidate = true;
+        }
+
+        waterSearchParameters.startPositionWS = waterSearchResult.candidateLocationWS;
+        waterSearchParameters.targetPositionWS = worldPosition;
+        waterSearchParameters.error = waterSurfaceQueryError;
+        waterSearchParameters.maxIterations = waterSurfaceQueryMaxIterations;
+        waterSearchParameters.outputNormal = false;
+
+        if (waterSurface.ProjectPointOnWaterSurface(waterSearchParameters, out waterSearchResult))
+        {
+            surfaceY = waterSearchResult.projectedPositionWS.y;
+            return true;
+        }
+
+        hasWaterSearchCandidate = false;
+        surfaceY = fallbackWaterSurfaceY;
+        return false;
     }
 
     void ApplyMetacentricRestoringTorque(float gravityMagnitude)

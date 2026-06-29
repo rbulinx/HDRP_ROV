@@ -10,7 +10,8 @@ using UnityEditor;
 public class SceneSelector : MonoBehaviour
 {
     public const string MenuSceneName = "EmptyMenu";
-    public const string DefaultGameSceneName = "mine_s";
+    public const string AuvTestSceneName = "AUV_TEST";
+    public const string DefaultGameSceneName = AuvTestSceneName;
     public const string UBoatSceneName = "U_Boat";
     public const string UnderwaterStructureSceneName = "UnderwaterStructure";
     public const string WaveEvaluationSceneName = "WaveEvaluation_U_Boat";
@@ -38,30 +39,11 @@ public class SceneSelector : MonoBehaviour
     [InitializeOnLoadMethod]
     static void SynchronizeEditorBuildSettings()
     {
-        string[] sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes" });
-        var scenePaths = new List<string>();
-        for (int i = 0; i < sceneGuids.Length; i++)
+        var scenePaths = new List<string>
         {
-            string path = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
-            if (!string.IsNullOrWhiteSpace(path) && path.EndsWith(".unity"))
-                scenePaths.Add(path);
-        }
-
-        scenePaths.Sort((a, b) => string.Compare(GetSceneNameFromPath(a), GetSceneNameFromPath(b), System.StringComparison.OrdinalIgnoreCase));
-
-        string menuPath = null;
-        for (int i = 0; i < scenePaths.Count; i++)
-        {
-            if (GetSceneNameFromPath(scenePaths[i]) == MenuSceneName)
-            {
-                menuPath = scenePaths[i];
-                scenePaths.RemoveAt(i);
-                break;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(menuPath))
-            scenePaths.Insert(0, menuPath);
+            "Assets/Scenes/EmptyMenu.unity",
+            "Assets/Scenes/AUV_TEST.unity"
+        };
 
         var buildScenes = new EditorBuildSettingsScene[scenePaths.Count];
         for (int i = 0; i < scenePaths.Count; i++)

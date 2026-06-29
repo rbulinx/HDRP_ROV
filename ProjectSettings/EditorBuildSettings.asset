@@ -9,23 +9,8 @@ EditorBuildSettings:
     path: Assets/Scenes/EmptyMenu.unity
     guid: c8e5d8a44d4b44a79d1b4d26783e8c21
   - enabled: 1
-    path: Assets/Scenes/cable inspection.unity
-    guid: a3f98e6671660f846959dae40b347a6f
-  - enabled: 1
-    path: Assets/Scenes/mine_s.unity
-    guid: fa4436974dd98e64fa9a17b309979942
-  - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 1
-    path: Assets/Scenes/UnderwaterStructure.unity
-    guid: f671f81a69d91d64b8a714dec7585fb4
-  - enabled: 1
-    path: Assets/Scenes/U_Boat.unity
-    guid: 5d095e451e9b7224192b31dd0c5c55ae
-  - enabled: 1
-    path: Assets/Scenes/WaveEvaluation_U_Boat.unity
-    guid: 855c5d3b40f349608256464a7123b698
+    path: Assets/Scenes/AUV_TEST.unity
+    guid: 9c3e5ed65ac838247892c081dbc7ba62
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

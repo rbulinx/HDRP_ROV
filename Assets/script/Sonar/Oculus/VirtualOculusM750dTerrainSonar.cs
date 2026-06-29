@@ -42,7 +42,7 @@ namespace Robalink.OculusEmulator
         [Range(0, 255)] public byte gammaCorrection = 127;
         public byte flags = 0;
         [Tooltip("0 means use the range requested by the Viewer. Set > 0 to force a test range in meters.")]
-        public float overrideRequestedRangeMeters = 0f;
+        public float overrideRequestedRangeMeters = 20f;
 
         [Header("Scene sensing")]
         public LayerMask targetLayers = ~0;
@@ -135,6 +135,12 @@ namespace Robalink.OculusEmulator
 
         void OnEnable()
         {
+            // Keep every scene/prefab on the requested 20 m emulator range,
+            // including older serialized instances that still contain 0 or 10 m.
+            overrideRequestedRangeMeters = 20f;
+            highFrequencyMaxRangeMeters = Mathf.Max(20f, highFrequencyMaxRangeMeters);
+            lowFrequencyMaxRangeMeters = Mathf.Max(20f, lowFrequencyMaxRangeMeters);
+
             if (rng == null) rng = new System.Random(12345);
             startTime = Time.realtimeSinceStartupAsDouble;
             if (statusUdp == null) StartStatusBroadcaster();
@@ -589,6 +595,8 @@ namespace Robalink.OculusEmulator
             get
             {
                 float modeMax = frequencyMode == OculusFrequencyMode.High ? highFrequencyMaxRangeMeters : lowFrequencyMaxRangeMeters;
+                if (overrideRequestedRangeMeters > 0f)
+                    return Mathf.Clamp(overrideRequestedRangeMeters, minRangeMeters, modeMax);
                 return requestedRangeMeters > 0f ? Mathf.Min(requestedRangeMeters, modeMax) : modeMax;
             }
         }

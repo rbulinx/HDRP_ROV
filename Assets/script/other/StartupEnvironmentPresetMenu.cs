@@ -146,10 +146,10 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
     Vector3 selectedCurrentVelocity = Vector3.zero;
     bool selectedSonarNoiseEnabled = true;
     bool selectedVisualMatterEnabled = true;
-    bool selectedWorksiteDebrisEnabled = true;
-    bool selectedBgmEnabled = true;
+    bool selectedWorksiteDebrisEnabled = false;
+    bool selectedBgmEnabled = false;
 
-    static bool globalBgmEnabled = true;
+    static bool globalBgmEnabled = false;
 
     static readonly Color ButtonNormalColor = new Color(0.12f, 0.5f, 0.7f, 0.95f);
     static readonly Color ButtonSelectedColor = new Color(0.10f, 0.70f, 0.30f, 1f);
@@ -185,7 +185,7 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
         selectedSonarRigX = ReadSonarRigPresetOrDefault();
         selectedMissionEnabled = SceneSelector.SelectedMissionEnabled;
         selectedEnvironmentTime = SceneSelector.SelectedEnvironmentTimePreset;
-        selectedCurrentVelocity = ReadCurrentVelocityOrDefault();
+        selectedCurrentVelocity = Vector3.zero;
         selectedBgmEnabled = globalBgmEnabled;
 
         if (!SceneSelector.IsMenuSceneActive() && SceneSelector.TryConsumePendingLaunch(out SceneSelector.LaunchConfiguration launchConfiguration))
@@ -422,6 +422,7 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
         ApplyCurrentVelocityToScene();
         ApplyMissionSelectionToScene();
         ApplyEnvironmentTimeSelectionToScene();
+        ApplyWorksiteDebrisSelectionToScene();
         if (selectedPerformance == PerformancePreset.Lightweight || performanceSelectionTouched)
             ApplyPerformancePresetToScene();
     }
@@ -1608,15 +1609,18 @@ public class StartupEnvironmentPresetMenu : MonoBehaviour
     void SetWorksiteDebrisEnabled(bool enabled)
     {
         selectedWorksiteDebrisEnabled = enabled;
+        ApplyWorksiteDebrisSelectionToScene();
+        UpdateEnvironmentButtonHighlights();
+    }
 
+    void ApplyWorksiteDebrisSelectionToScene()
+    {
         UnderwaterWorksiteDebrisField[] fields = FindObjectsByType<UnderwaterWorksiteDebrisField>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < fields.Length; i++)
         {
-            fields[i].debrisEnabled = enabled;
-            fields[i].visibleToSonar = enabled;
+            fields[i].debrisEnabled = selectedWorksiteDebrisEnabled;
+            fields[i].visibleToSonar = selectedWorksiteDebrisEnabled;
         }
-
-        UpdateEnvironmentButtonHighlights();
     }
 
     void SetEnvironmentCurrentVelocity(Vector3 velocity)

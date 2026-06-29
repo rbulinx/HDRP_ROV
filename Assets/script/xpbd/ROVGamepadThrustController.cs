@@ -70,13 +70,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     public bool heaveWorldUp = true;
 
     [Header("Physical Horizontal Thrusters")]
-    public HorizontalThruster[] horizontalThrusters = new HorizontalThruster[]
-    {
-        new HorizontalThruster { name = "Front Left",  localPosition = new Vector3(-0.17f, -0.045f,  0.20f), localDirection = new Vector3( 1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
-        new HorizontalThruster { name = "Front Right", localPosition = new Vector3( 0.17f, -0.045f,  0.20f), localDirection = new Vector3( 1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
-        new HorizontalThruster { name = "Rear Left",   localPosition = new Vector3(-0.17f, -0.045f, -0.20f), localDirection = new Vector3( 1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
-        new HorizontalThruster { name = "Rear Right",  localPosition = new Vector3( 0.17f, -0.045f, -0.20f), localDirection = new Vector3( 1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
-    };
+    public HorizontalThruster[] horizontalThrusters = CreateArduSubVectoredHorizontalThrusters();
     [Tooltip("Small damping for the thruster mixer. Increase if thrust allocation jitters near singular layouts.")]
     public float horizontalThrusterMixerRegularization = 0.001f;
     [Range(0f, 1f)]
@@ -135,9 +129,21 @@ public class ROVGamepadThrustController : MonoBehaviour
     [Tooltip("Seconds after the last MAVLink control message before input is treated as lost.")]
     [Range(0.05f, 5f)] public float mavlinkInputTimeoutSeconds = 0.75f;
 
+    [Header("External Thruster Output")]
+    [Tooltip("Suppress local gamepad/keyboard forces while an external bridge is applying direct thruster outputs.")]
+    public bool suppressLocalInputWhileExternalThrustersActive = true;
+    [Tooltip("When enabled by a SITL bridge, ignore Unity local/MAVLink manual input and accept only direct thruster outputs.")]
+    public bool externalThrusterControlActive;
+    [Tooltip("Seconds after the last external thruster update before local input is allowed again.")]
+    [Range(0.02f, 1f)] public float externalThrusterOutputTimeoutSeconds = 0.12f;
+    [Tooltip("Planar force scale for direct external horizontal thruster output.")]
+    [Range(0f, 4f)] public float externalThrusterPlanarForceScale = 3.0f;
+    [Tooltip("Vertical force scale for direct external vertical thruster output.")]
+    [Range(0f, 2f)] public float externalThrusterVerticalForceScale = 1.6f;
+
     [Header("Physics")]
     public float linearDamping = 4.0f;
-    public float angularDamping = 3.0f;
+    public float angularDamping = 18.0f;
 
     [Header("Heading Lock")]
     public bool enableHeadingLockFeature = true;
@@ -215,7 +221,7 @@ public class ROVGamepadThrustController : MonoBehaviour
 
     // =========================================================
     [Header("Wave Rocking (Inspector ON/OFF)")]
-    public bool enableWaveRocking = true;
+    public bool enableWaveRocking = false;
 
     [Tooltip("波の影響は水面からこの深さ[m]まで（深いほど影響ゼロ）")]
     public float waveAffectMaxDepthMeters = 0.6f;
@@ -250,10 +256,10 @@ public class ROVGamepadThrustController : MonoBehaviour
     public float waveDesiredSubmergeMeters = 0.10f;
 
     [Tooltip("ボブばね[N/m]（大きいと水面に貼り付きやすいので控えめ推奨）")]
-    public float waveBobSpringNPerM = 200f;
+    public float waveBobSpringNPerM = 240f;
 
     [Tooltip("ボブ減衰[N/(m/s)]")]
-    public float waveBobDampNPerMS = 240f;
+    public float waveBobDampNPerMS = 280f;
 
     [Tooltip("潜航入力（下向き）中はボブを弱める")]
     public bool suppressBobWhileDiving = true;
@@ -305,6 +311,7 @@ public class ROVGamepadThrustController : MonoBehaviour
     Vector2 _mavlinkLookInput = Vector2.zero;
     float _lastMavlinkInputTime = -999f;
     bool _hasMavlinkInput;
+    float _lastExternalThrusterOutputTime = -999f;
     Gamepad _lastPreferredGamepad;
     Joystick _lastPreferredJoystick;
     float _lightIntensity;
@@ -357,6 +364,7 @@ public class ROVGamepadThrustController : MonoBehaviour
         rb.angularDamping = angularDamping;
 
         AutoAssignCameraIfNeeded();
+        ResolveWaterSurfaceIfNeeded();
         EnsureRuntimeTuningDefaults();
         AutoAssignLightsIfNeeded();
         InitializeLightIntensity();
@@ -424,6 +432,11 @@ public class ROVGamepadThrustController : MonoBehaviour
 
         Vector2 left = _cachedMoveInput;
         Vector2 right = _cachedLookInput;
+        if (IsExternalThrusterOutputFresh())
+        {
+            left = Vector2.zero;
+            right = Vector2.zero;
+        }
 
         Vector3 localPlanar = new Vector3(left.x, 0f, left.y);
         float heave = right.y;
@@ -496,7 +509,8 @@ public class ROVGamepadThrustController : MonoBehaviour
         }
 
         // 姿勢安定（波のロール/ピッチを見せたいなら strength を下げる or OFF）
-        if (keepUpright) StabilizeUpright();
+        if (keepUpright && !IsExternalThrusterOutputFresh())
+            StabilizeUpright();
 
         // 波の影響（潜航を邪魔しない “Tilt中心”）
         if (enableWaveRocking)
@@ -509,6 +523,14 @@ public class ROVGamepadThrustController : MonoBehaviour
 
     void CacheInputForPhysics()
     {
+        if (externalThrusterControlActive)
+        {
+            _cachedMoveInput = Vector2.zero;
+            _cachedLookInput = Vector2.zero;
+            _cachedTiltInput = 0f;
+            return;
+        }
+
         if (_awaitingStartupInputSelection)
         {
             _cachedMoveInput = Vector2.zero;
@@ -576,28 +598,12 @@ public class ROVGamepadThrustController : MonoBehaviour
         float k = 1f - Mathf.Clamp01(depthCenter / maxDepth);
         if (k <= 0f) return;
 
-        float clampFade = 1f;
         float hardLimitY = float.PositiveInfinity;
         float guard = Mathf.Max(0f, waveRockingClampGuardMeters);
         if (clampToWaterSurface)
         {
             hardLimitY = GetWaterSurfaceYAt(rb.position) - Mathf.Max(0f, hardClampBelowSurfaceMeters);
-            if (guard > 0f)
-            {
-                float clearanceBelowClamp = hardLimitY - rb.position.y;
-                clampFade = Mathf.Clamp01(clearanceBelowClamp / guard);
-                clampFade = clampFade * clampFade * (3f - 2f * clampFade);
-            }
-            else if (rb.position.y >= hardLimitY)
-            {
-                clampFade = 0f;
-            }
-
-            if (clampFade <= 0f)
-                return;
         }
-
-        k *= clampFade;
 
         // 1) Tilt：平均水面からの“凹凸差”だけで力を入れる（合計上下力は理論上0）
         for (int i = 0; i < n; i++)
@@ -1130,6 +1136,14 @@ public class ROVGamepadThrustController : MonoBehaviour
 
         inputLagTimeConstantSeconds = Mathf.Max(0f, inputLagTimeConstantSeconds);
         mavlinkInputTimeoutSeconds = Mathf.Max(0.05f, mavlinkInputTimeoutSeconds);
+        externalThrusterOutputTimeoutSeconds = Mathf.Max(0.02f, externalThrusterOutputTimeoutSeconds);
+        externalThrusterPlanarForceScale = 3.0f;
+        externalThrusterVerticalForceScale = 1.6f;
+        angularDamping = 18.0f;
+        enableWaveRocking = true;
+        waveAffectMaxDepthMeters = Mathf.Max(1.2f, waveAffectMaxDepthMeters);
+        enableWaveBob = true;
+        EnsureArduSubVectoredHorizontalThrusterLayout();
 
         if (lightIntensityStep < 5000f)
             lightIntensityStep = 5000f;
@@ -1185,6 +1199,55 @@ public class ROVGamepadThrustController : MonoBehaviour
         get { return _hasMavlinkInput ? Time.unscaledTime - _lastMavlinkInputTime : float.PositiveInfinity; }
     }
 
+    static HorizontalThruster[] CreateArduSubVectoredHorizontalThrusters()
+    {
+        const float x = 0.17f;
+        const float y = -0.045f;
+        const float z = 0.20f;
+
+        return new HorizontalThruster[]
+        {
+            new HorizontalThruster { name = "M1 Front Right", localPosition = new Vector3( x, y,  z), localDirection = new Vector3( 1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+            new HorizontalThruster { name = "M2 Front Left",  localPosition = new Vector3(-x, y,  z), localDirection = new Vector3(-1f, 0f, -1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+            new HorizontalThruster { name = "M3 Rear Right",  localPosition = new Vector3( x, y, -z), localDirection = new Vector3( 1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+            new HorizontalThruster { name = "M4 Rear Left",   localPosition = new Vector3(-x, y, -z), localDirection = new Vector3(-1f, 0f,  1f).normalized, maxForwardThrustN = 49f, maxReverseThrustN = 49f },
+        };
+    }
+
+    void EnsureArduSubVectoredHorizontalThrusterLayout()
+    {
+        horizontalThrusters = CreateArduSubVectoredHorizontalThrusters();
+    }
+
+    public void NotifyExternalThrusterOutput()
+    {
+        _lastExternalThrusterOutputTime = Time.unscaledTime;
+    }
+
+    public void SetExternalThrusterControlActive(bool active)
+    {
+        externalThrusterControlActive = active;
+        if (!active)
+            return;
+
+        _cachedMoveInput = Vector2.zero;
+        _cachedLookInput = Vector2.zero;
+        _cachedTiltInput = 0f;
+        ClearMavlinkControlInput();
+    }
+
+    bool IsExternalThrusterOutputFresh()
+    {
+        if (externalThrusterControlActive)
+            return true;
+
+        if (!suppressLocalInputWhileExternalThrustersActive)
+            return false;
+
+        float timeout = Mathf.Max(0.02f, externalThrusterOutputTimeoutSeconds);
+        return Time.unscaledTime - _lastExternalThrusterOutputTime <= timeout;
+    }
+
     public void SetMavlinkControlInput(float surge, float sway, float heave, float yaw)
     {
         _mavlinkMoveInput = new Vector2(
@@ -1208,6 +1271,15 @@ public class ROVGamepadThrustController : MonoBehaviour
         _mavlinkLookInput = Vector2.zero;
         _hasMavlinkInput = false;
         _lastMavlinkInputTime = -999f;
+    }
+
+    public void ApplyDirectNormalizedThrusterOutputs(float[] horizontalOutputs, float[] verticalOutputs, float thrustScale = 1f)
+    {
+        ForceMode fm = useAccelerationMode ? ForceMode.Acceleration : ForceMode.Force;
+        float scale = Mathf.Max(0f, thrustScale);
+
+        ApplyDirectHorizontalThrusterOutputs(horizontalOutputs, scale, fm);
+        ApplyDirectVerticalThrusterOutputs(verticalOutputs, scale, fm);
     }
 
     public bool HeadingLockEnabled
@@ -1368,10 +1440,20 @@ public class ROVGamepadThrustController : MonoBehaviour
 
     float GetWaterSurfaceYAt(Vector3 worldPos)
     {
+        ResolveWaterSurfaceIfNeeded();
         if (waterSurface != null && TryGetHDRPWaterSurface(worldPos, out float y))
             return y;
 
         return fallbackWaterSurfaceY;
+    }
+
+    void ResolveWaterSurfaceIfNeeded()
+    {
+        if (waterSurface != null)
+            return;
+
+        waterSurface = FindFirstObjectByType<WaterSurface>();
+        _hasWSRCandidate = false;
     }
 
     bool TryGetHDRPWaterSurface(Vector3 worldPos, out float surfaceY)
@@ -2114,6 +2196,44 @@ public class ROVGamepadThrustController : MonoBehaviour
         }
     }
 
+    void ApplyDirectHorizontalThrusterOutputs(float[] normalizedOutputs, float thrustScale, ForceMode forceMode)
+    {
+        if (normalizedOutputs == null || normalizedOutputs.Length == 0)
+            return;
+
+        if (!TryBuildHorizontalThrusterMixer(
+                out HorizontalThruster[] thrusters,
+                out Vector3[] localPositions,
+                out Vector3[] localDirections,
+                out _,
+                out _,
+                out _,
+                out int count))
+        {
+            WarnInvalidHorizontalThrustersOnce();
+            return;
+        }
+
+        int n = Mathf.Min(count, normalizedOutputs.Length);
+        float outputScale = Mathf.Clamp(externalThrusterPlanarForceScale, 0f, 4f);
+        for (int i = 0; i < n; i++)
+        {
+            float command = Mathf.Clamp(normalizedOutputs[i] * outputScale, -2f, 2f);
+            if (Mathf.Abs(command) <= 1e-4f)
+                continue;
+
+            HorizontalThruster thruster = thrusters[i];
+            float limit = command >= 0f
+                ? Mathf.Max(0f, thruster.maxForwardThrustN)
+                : Mathf.Max(0f, thruster.maxReverseThrustN);
+            float thrust = command * limit * thrustScale;
+
+            Vector3 worldPosition = TransformLocalPointWithoutScale(localPositions[i]);
+            Vector3 worldDirection = transform.TransformDirection(localDirections[i]).normalized;
+            rb.AddForceAtPosition(worldDirection * thrust, worldPosition, forceMode);
+        }
+    }
+
     bool TryBuildHorizontalThrusterMixer(
         out HorizontalThruster[] activeThrusters,
         out Vector3[] localPositions,
@@ -2247,6 +2367,44 @@ public class ROVGamepadThrustController : MonoBehaviour
             float thrust = _verticalThrusterScratchCommand[i] * commandScale;
             if (Mathf.Abs(thrust) <= 1e-4f)
                 continue;
+
+            Vector3 worldPosition = TransformLocalPointWithoutScale(localPositions[i]);
+            Vector3 worldDirection = transform.TransformDirection(localDirections[i]).normalized;
+            rb.AddForceAtPosition(worldDirection * thrust, worldPosition, forceMode);
+        }
+    }
+
+    void ApplyDirectVerticalThrusterOutputs(float[] normalizedOutputs, float thrustScale, ForceMode forceMode)
+    {
+        if (normalizedOutputs == null || normalizedOutputs.Length == 0)
+            return;
+
+        if (!TryBuildVerticalThrusterMixer(
+                out VerticalThruster[] thrusters,
+                out Vector3[] localPositions,
+                out Vector3[] localDirections,
+                out _,
+                out _,
+                out _,
+                out int count))
+        {
+            WarnInvalidVerticalThrustersOnce();
+            return;
+        }
+
+        int n = Mathf.Min(count, normalizedOutputs.Length);
+        for (int i = 0; i < n; i++)
+        {
+            float outputScale = Mathf.Clamp(externalThrusterVerticalForceScale, 0f, 2f);
+            float command = Mathf.Clamp(normalizedOutputs[i] * outputScale, -2f, 2f);
+            if (Mathf.Abs(command) <= 1e-4f)
+                continue;
+
+            VerticalThruster thruster = thrusters[i];
+            float limit = command >= 0f
+                ? Mathf.Max(0f, thruster.maxForwardThrustN)
+                : Mathf.Max(0f, thruster.maxReverseThrustN);
+            float thrust = command * limit * thrustScale;
 
             Vector3 worldPosition = TransformLocalPointWithoutScale(localPositions[i]);
             Vector3 worldDirection = transform.TransformDirection(localDirections[i]).normalized;
