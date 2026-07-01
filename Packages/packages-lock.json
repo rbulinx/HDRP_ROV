@@ -282,6 +282,13 @@
       },
       "url": "https://packages.unity.com"
     },
+    "jp.rbulinx.sitl-engine": {
+      "version": "https://github.com/rbulinx/sitl-engine.git#v0.1.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "623ce153cbe6646a1a1079caa86d73dd290840cc"
+    },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
       "depth": 0,
