@@ -32,10 +32,14 @@ public static class AttachSitlEngineModules
         RovWaterPhysicsModule module = target.GetComponent<RovWaterPhysicsModule>();
         if (module == null)
             module = (RovWaterPhysicsModule)Undo.AddComponent(target, typeof(RovWaterPhysicsModule));
+        else
+            Undo.RecordObject(module, "Attach SITL Engine Modules");
 
         SitlEngineCore core = target.GetComponent<SitlEngineCore>();
         if (core == null)
             core = (SitlEngineCore)Undo.AddComponent(target, typeof(SitlEngineCore));
+        else
+            Undo.RecordObject(core, "Attach SITL Engine Modules");
 
         CopyFields(source, core, module);
         core.vehicleModuleBehaviour = module;
@@ -45,9 +49,11 @@ public static class AttachSitlEngineModules
         module.enabled = false;
 
         EditorUtility.SetDirty(target);
+        EditorUtility.SetDirty(core);
+        EditorUtility.SetDirty(module);
         Selection.activeGameObject = target;
         Debug.Log($"[SITL Engine] Attached SitlEngineCore + RovWaterPhysicsModule to '{target.name}' (disabled) with tuned values copied from ArduPilotJsonSitlBridge. " +
-            "To A/B test: disable ArduPilotJsonSitlBridge and enable the two new components — they share the same UDP port, so only enable one driver at a time.");
+            "To A/B test: disable ArduPilotJsonSitlBridge and enable the two new components - they share the same UDP port, so only enable one driver at a time.");
     }
 
     static void CopyFields(ArduPilotJsonSitlBridge src, SitlEngineCore core, RovWaterPhysicsModule module)
