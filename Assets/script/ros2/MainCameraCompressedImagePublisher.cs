@@ -194,7 +194,7 @@ public sealed class MainCameraCompressedImagePublisher : MonoBehaviour
     {
         readbackPending = false;
 
-        if (!isActiveAndEnabled || request.hasError || cpuTexture == null)
+        if (this == null || !isActiveAndEnabled || request.hasError || cpuTexture == null)
             return;
 
         byte[] rgba = request.GetData<byte>().ToArray();

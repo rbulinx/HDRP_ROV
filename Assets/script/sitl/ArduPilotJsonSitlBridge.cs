@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody))]
@@ -34,9 +35,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     public class JsonOutputPacket
     {
         public float timestamp;
-        public double latitude;
-        public double longitude;
-        public double altitude;
         public JsonImuData imu = new JsonImuData();
         public float[] position = { 0f, 0f, 0f };
         public float[] attitude = { 0f, 0f, 0f };
@@ -52,8 +50,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         public Vector3 localDirection = Vector3.forward;
         public float maxForwardThrustN = 49f;
         public float maxReverseThrustN = 49f;
-        public float linearDragCoefficient = 0f;
-        public float angularDragCoefficient = 0f;
     }
 
     struct TelemetryState
@@ -79,68 +75,43 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     }
 
     [Header("UDP JSON SITL")]
-    public int localPort = 9002;
+    [FormerlySerializedAs("localPort")] public int _1Port = 9002;
     [HideInInspector] public bool connectOnEnable = true;
     [HideInInspector] public int maxPacketsPerUpdate = 16;
     [HideInInspector] public int receiveBufferSizeBytes = 262144;
 
     [Header("Target")]
-    public Transform telemetrySource;
+    [FormerlySerializedAs("telemetrySource")] public Transform _2Target;
 
     [Header("Vehicle Model")]
-    public float vehicleMassKg = 10f;
-    public float linearDragCoefficient = 35f;
-    public float quadraticDragCoefficient = 8f;
-    public float angularDragCoefficient = 5f;
-    public float fluidDensityKgPerCubicMeter = 997f;
-    public float defaultHorizontalThrusterMaxN = 100f;
-    public float defaultVerticalThrusterMaxN = 200f;
-    public SitlThrusterSpec[] sitlThrusters = Array.Empty<SitlThrusterSpec>();
+    [FormerlySerializedAs("vehicleMassKg")] public float _3MassKg = 10f;
+    [FormerlySerializedAs("linearDragCoefficient")] public float _4LinDrag = 35f;
+    [FormerlySerializedAs("angularDragCoefficient")] public float _5AngDrag = 5f;
+    [FormerlySerializedAs("defaultHorizontalThrusterMaxN")] public float _6HThrustN = 100f;
+    [FormerlySerializedAs("defaultVerticalThrusterMaxN")] public float _7VThrustN = 200f;
+    [FormerlySerializedAs("sitlThrusters")] public SitlThrusterSpec[] _8Thrusters = Array.Empty<SitlThrusterSpec>();
 
     [Header("Water Current")]
-    public bool applyWaterCurrent = false;
-    public bool autoApplyWaterCurrentWhenCurrentVelocityIsNonZero = true;
-    public Vector3 currentVelocity = Vector3.zero;
+    [FormerlySerializedAs("applyWaterCurrent")] public bool _9UseCurrent = false;
+    [FormerlySerializedAs("autoApplyWaterCurrentWhenCurrentVelocityIsNonZero")] public bool _10AutoCurrent = true;
+    [FormerlySerializedAs("currentVelocity")] public Vector3 _11CurrentVel = Vector3.zero;
     [HideInInspector] public bool logWaterCurrentForces;
     [HideInInspector] public float waterCurrentLogIntervalSeconds = 1f;
 
-    [Header("Water Surface Forces")]
-    public bool applyWaterSurfaceForces = true;
-    public float waterSurfaceDesiredSubmergeMeters = 0.5f;
-    public bool holdDepthRelativeToWaterSurface = false;
-    public float waterSurfaceVerticalSpringNPerM = 100f;
-    public float waterSurfaceVerticalDampingNPerMS = 280f;
-    public bool applyWaterSurfaceTiltForces = true;
-    public float waterSurfaceTiltSpringNPerM = 50f;
-    public float waterSurfaceTiltDampingNPerMS = 80f;
-    public float maxWaterSurfaceForcePerPointN = 40f;
-    public float waterSurfaceClampBelowSurfaceMeters = 0.05f;
-    public float waterSurfaceClampGuardMeters = 0.08f;
-    public bool zeroUpwardVelocityOnWaterSurfaceClamp = true;
-    public bool suppressWaterSurfaceForcesWhileDiving = false;
-    public float waterSurfaceDiveForceThresholdN = 0.5f;
-    public bool lowPassWaterSurfaceForces = true;
-    public float waterSurfaceLowPassTimeSeconds = 2.0f;
-    public bool autoTuneWaveResponseFromOceanWind = true;
-    public float oceanWindReferenceSpeedKmh = 30f;
-    public float minAutoWaveLengthMeters = 4f;
-    public float maxAutoWaveLengthMeters = 24f;
-    public float minAutoWaterParticleMotionScale = 0.4f;
-    public float maxAutoWaterParticleMotionScale = 2.5f;
-    public float waterSurfaceWaveLengthMeters = 12f;
-    public float waterParticleMotionScale = 2f;
-    public float waterParticleAccelerationScale = 1.2f;
-    public float maxWaterParticleVerticalForceN = 800f;
-    public Vector3 waterParticleHorizontalDirection = Vector3.forward;
-    public float waterParticlePrimaryDirectionWeight = 1f;
-    public float waterParticleCrossDirectionWeight = 0.2f;
-    public float waterParticleObliqueDirectionWeight = 0.1f;
-    public float waterSurfaceWavePeriodSeconds = 4f;
-    public float waterParticleHorizontalMotionScale = 0.5f;
-    public float waterParticleHorizontalDampingNPerMS = 120f;
-    public float maxWaterParticleHorizontalForceN = 300f;
-    public float minimumWaterSurfaceWaveInfluence = 0f;
-    public Vector3[] waterSurfaceLocalSamplePoints =
+    [Header("Water Surface - Buoyancy Spring")]
+    [FormerlySerializedAs("applyWaterSurfaceForces")] public bool _12UseSurface = true;
+    [FormerlySerializedAs("waterSurfaceDesiredSubmergeMeters")] public float _13SubmergeM = 0.5f;
+    [FormerlySerializedAs("holdDepthRelativeToWaterSurface")] public bool _14HoldDepth = false;
+    [FormerlySerializedAs("waterSurfaceVerticalSpringNPerM")] public float _15VSpring = 100f;
+    [FormerlySerializedAs("waterSurfaceVerticalDampingNPerMS")] public float _16VDamping = 280f;
+
+    [Header("Water Surface - Tilt Response")]
+    [FormerlySerializedAs("applyWaterSurfaceTiltForces")] public bool _17UseTilt = true;
+    [FormerlySerializedAs("waterSurfaceTiltSpringNPerM")] public float _18TiltSpring = 50f;
+    [FormerlySerializedAs("waterSurfaceTiltDampingNPerMS")] public float _19TiltDamping = 80f;
+    [FormerlySerializedAs("maxWaterSurfaceForcePerPointN")] public float _20MaxPointN = 40f;
+    [FormerlySerializedAs("waterSurfaceLocalSamplePoints")]
+    public Vector3[] _21SamplePts =
     {
         new Vector3(0.75f, 0f, 0.75f),
         new Vector3(-0.75f, 0f, 0.75f),
@@ -148,11 +119,51 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         new Vector3(-0.75f, 0f, -0.75f)
     };
 
+    [Header("Water Surface - Breach / Clamp Safety")]
+    [FormerlySerializedAs("waterSurfaceClampBelowSurfaceMeters")] public float _22ClampBelowM = 0.05f;
+    [FormerlySerializedAs("waterSurfaceClampGuardMeters")] public float _23ClampGuardM = 0.08f;
+    [FormerlySerializedAs("zeroUpwardVelocityOnWaterSurfaceClamp")] public bool _24ZeroUpVel = true;
+    [FormerlySerializedAs("waterSurfaceClampSoftenTimeSeconds")] public float _25ClampSoftenS = 0.15f;
+    [FormerlySerializedAs("waterSurfaceClampHardMarginMeters")] public float _26ClampHardM = 0.1f;
+    [FormerlySerializedAs("waterSurfaceBreachSpringMultiplier")] public float _27BreachMult = 3f;
+    [FormerlySerializedAs("waterSurfaceBreachAnticipationMeters")] public float _28BreachAntM = 0.1f;
+    [FormerlySerializedAs("suppressWaterSurfaceForcesWhileDiving")] public bool _29SuppressDive = false;
+    [FormerlySerializedAs("waterSurfaceDiveForceThresholdN")] public float _30DiveThreshN = 0.5f;
+
+    [Header("Water Surface - Signal Smoothing")]
+    [FormerlySerializedAs("lowPassWaterSurfaceForces")] public bool _31UseLowPass = true;
+    [FormerlySerializedAs("waterSurfaceLowPassTimeSeconds")] public float _32LowPassS = 2.0f;
+
+    [Header("Water Surface - Wave Auto-Tune (from Wind)")]
+    [FormerlySerializedAs("autoTuneWaveResponseFromOceanWind")] public bool _33AutoTuneWind = true;
+    [FormerlySerializedAs("oceanWindReferenceSpeedKmh")] public float _34WindRefKmh = 30f;
+    [FormerlySerializedAs("minAutoWaveLengthMeters")] public float _35MinWaveLenM = 4f;
+    [FormerlySerializedAs("maxAutoWaveLengthMeters")] public float _36MaxWaveLenM = 24f;
+    [FormerlySerializedAs("minAutoWaterParticleMotionScale")] public float _37MinMotionScale = 0.4f;
+    [FormerlySerializedAs("maxAutoWaterParticleMotionScale")] public float _38MaxMotionScale = 2.5f;
+
+    [Header("Water Surface - Wave Motion")]
+    [FormerlySerializedAs("waterSurfaceWaveLengthMeters")] public float _39WaveLenM = 12f;
+    [FormerlySerializedAs("waterSurfaceWavePeriodSeconds")] public float _40WavePeriodS = 4f;
+    [FormerlySerializedAs("waterParticleMotionScale")] public float _41MotionScale = 2f;
+    [FormerlySerializedAs("waterParticleAccelerationScale")] public float _42AccelScale = 1.2f;
+    [FormerlySerializedAs("maxWaterParticleVerticalForceN")] public float _43MaxVForceN = 800f;
+    [FormerlySerializedAs("minimumWaterSurfaceWaveInfluence")] public float _44MinWaveInfluence = 0f;
+
+    [Header("Water Surface - Horizontal Drift")]
+    [FormerlySerializedAs("waterParticleHorizontalDirection")] public Vector3 _45HDirection = Vector3.forward;
+    [FormerlySerializedAs("waterParticlePrimaryDirectionWeight")] public float _46PrimaryWeight = 1f;
+    [FormerlySerializedAs("waterParticleCrossDirectionWeight")] public float _47CrossWeight = 0.2f;
+    [FormerlySerializedAs("waterParticleObliqueDirectionWeight")] public float _48ObliqueWeight = 0.1f;
+    [FormerlySerializedAs("waterParticleHorizontalMotionScale")] public float _49HMotionScale = 0.5f;
+    [FormerlySerializedAs("waterParticleHorizontalDampingNPerMS")] public float _50HDampingN = 120f;
+    [FormerlySerializedAs("maxWaterParticleHorizontalForceN")] public float _51MaxHForceN = 300f;
+
     [Header("Servo Mapping")]
-    public int[] horizontalServoChannels = { 1, 2, 3, 4 };
-    public int[] verticalServoChannels = { 5, 6 };
-    public float[] horizontalOutputScales = { 1f, 1f, 1f, 1f };
-    public float[] verticalOutputScales = { -1f, -1f };
+    [FormerlySerializedAs("horizontalServoChannels")] public int[] _52HChannels = { 1, 2, 3, 4 };
+    [FormerlySerializedAs("verticalServoChannels")] public int[] _53VChannels = { 5, 6 };
+    [FormerlySerializedAs("horizontalOutputScales")] public float[] _54HScales = { 1f, 1f, 1f, 1f };
+    [FormerlySerializedAs("verticalOutputScales")] public float[] _55VScales = { -1f, -1f };
     [HideInInspector] public float servoPwmMin = 1100f;
     [HideInInspector] public float servoPwmNeutral = 1500f;
     [HideInInspector] public float servoPwmMax = 1900f;
@@ -161,7 +172,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     [HideInInspector] public bool invertHorizontalMotorOutputs = false;
     [HideInInspector] [Range(0.01f, 1f)] public float actuatorOutputSmoothing = 0.12f;
     [HideInInspector] public float maxActuatorOutputSlewPerSecond = 1.5f;
-    public float directThrustScale = 1f;
+    [FormerlySerializedAs("directThrustScale")] public float _56ThrustScale = 1f;
     [HideInInspector] public ServoOutputMode servoOutputMode = ServoOutputMode.MotorOutputs;
     [HideInInspector] [Range(-2f, 2f)] public float horizontalSurgeScale = 1f;
     [HideInInspector] [Range(-2f, 2f)] public float horizontalSwayScale = 1f;
@@ -175,11 +186,11 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     [Header("State Mapping")]
     [HideInInspector] public bool zeroUnityPositionAtStart = true;
-    public bool useWaterSurfaceAsVerticalOrigin = true;
-    public WaterSurface waterSurface;
-    public float waterSurfaceY = 0f;
-    public float waterQueryError = 0.01f;
-    public int waterQueryMaxIterations = 8;
+    [FormerlySerializedAs("useWaterSurfaceAsVerticalOrigin")] public bool _57UseSurfaceOrigin = true;
+    [FormerlySerializedAs("waterSurface")] public WaterSurface _58Surface;
+    [FormerlySerializedAs("waterSurfaceY")] public float _59SurfaceY = 0f;
+    [FormerlySerializedAs("waterQueryError")] public float _60QueryError = 0.01f;
+    [FormerlySerializedAs("waterQueryMaxIterations")] public int _61QueryIter = 8;
     [HideInInspector] public WorldFrameMapping worldFrameMapping = WorldFrameMapping.UnityForwardZRightXUpY;
     [HideInInspector] public bool invertReportedHorizontalPosition = false;
     [HideInInspector] public bool freezeVerticalState = false;
@@ -200,19 +211,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     [HideInInspector] [Range(0.01f, 1f)] public float reportedAttitudeSmoothing = 1f;
     [HideInInspector] public bool deriveReportedYawRateFromAttitude = true;
     [HideInInspector] public float maxReportedYawRateRadiansPerSecond = 2.5f;
-    public double originLatitude = 33.2795;
-    public double originLongitude = 131.5007;
-    public double originAltitudeMeters = 0.0;
-    [HideInInspector] public bool alwaysSendGeographicPositionForQgc = false;
-    [HideInInspector] public bool sendGeographicPosition = false;
-    [HideInInspector] public bool omitLocalPositionWhenSendingGps = false;
-    [HideInInspector] public bool filterGpsPosition = true;
-    [HideInInspector] public float maxGpsHorizontalSpeed = 8f;
-    [HideInInspector] public float maxGpsVerticalSpeed = 2f;
-    [HideInInspector] [Range(0.01f, 1f)] public float gpsPositionSmoothing = 1f;
-    [HideInInspector] public bool deriveVelocityFromPosition = true;
+    [HideInInspector] public bool deriveVelocityFromPosition = false;
     [HideInInspector] public bool usePositionVelocityWhenRigidbodyIsStopped = true;
-    [HideInInspector] public bool deriveVerticalVelocityFromPosition = true;
+    [HideInInspector] public bool deriveVerticalVelocityFromPosition = false;
     [HideInInspector] public bool forceStableVerticalReport = false;
     [HideInInspector] public bool filterReportedPosition = false;
     [HideInInspector] public float positionTinyValueEpsilon = 0.001f;
@@ -261,12 +262,10 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     float lastOutputTimestamp = -1f;
     float telemetryStartRealtime = -1f;
     double lastPositionFilterTimestamp = -1.0;
-    double lastGpsFilterTimestamp = -1.0;
     double lastVelocityEstimateTimestamp = -1.0;
     Vector3 lastReportedPositionNed;
     Vector3 filteredPositionNed;
     Vector3 filteredVelocityNed;
-    Vector3 filteredGpsPositionNed;
     Vector3 lastVelocityNed;
     Vector3 filteredAccelNed;
     Vector3 filteredAttitudeRadians;
@@ -276,14 +275,16 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     double lastAccelerationTimestamp = -1.0;
     double lastAttitudeFilterTimestamp = -1.0;
     double lastVerticalVelocityTimestamp = -1.0;
+    double lastDepthSlewTimestamp = -1.0;
     float lastVerticalPositionDown;
+    float slewLimitedDepthDown;
     float filteredVerticalVelocityDown;
     bool hasFilteredPosition;
-    bool hasFilteredGpsPosition;
     bool hasFilteredAttitude;
     bool hasInitialReportedRollPitch;
     bool hasPreviousVelocityNed;
     bool hasPreviousVerticalPosition;
+    bool hasSlewLimitedDepth;
     bool hasSeenActiveThrusterOutput;
     float lastActuatorOutputTime = -999f;
     float lastServoLogTime = -999f;
@@ -300,7 +301,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     float[] verticalOutputTargets = Array.Empty<float>();
     float[] horizontalOutputs = Array.Empty<float>();
     float[] verticalOutputs = Array.Empty<float>();
-    Vector3[] waterSurfaceWorldSamplePoints = Array.Empty<Vector3>();
+    Vector3[] surfaceWorldSamplePoints = Array.Empty<Vector3>();
     float[] filteredWaterSurfaceSampleY = Array.Empty<float>();
     bool[] validWaterSurfaceSampleY = Array.Empty<bool>();
     bool hasFilteredWaterSurfaceSamples;
@@ -341,17 +342,15 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         RefreshVehicleModel();
         ApplyVehicleModelToRigidbody();
         unityOriginPosition = GetTelemetryPosition();
-        if (useWaterSurfaceAsVerticalOrigin)
+        if (_57UseSurfaceOrigin)
             unityOriginPosition.y = GetWaterSurfaceY();
         lastOutputTimestamp = -1f;
         telemetryStartRealtime = Time.unscaledTime;
         lastPositionFilterTimestamp = -1.0;
-        lastGpsFilterTimestamp = -1.0;
         lastVelocityEstimateTimestamp = -1.0;
         lastReportedPositionNed = Vector3.zero;
         filteredPositionNed = Vector3.zero;
         filteredVelocityNed = Vector3.zero;
-        filteredGpsPositionNed = Vector3.zero;
         lastVelocityNed = Vector3.zero;
         filteredAccelNed = Vector3.zero;
         filteredAttitudeRadians = Vector3.zero;
@@ -361,7 +360,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         lastAccelerationTimestamp = -1.0;
         lastAttitudeFilterTimestamp = -1.0;
         lastVerticalVelocityTimestamp = -1.0;
+        lastDepthSlewTimestamp = -1.0;
         lastVerticalPositionDown = 0f;
+        slewLimitedDepthDown = 0f;
         filteredVerticalVelocityDown = 0f;
         lastServoLogTime = -999f;
         lastForceLogTime = -999f;
@@ -371,11 +372,11 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         lastEkfDiagnosticLogTime = -999f;
         lastWaterCurrentLogTime = -999f;
         hasFilteredPosition = false;
-        hasFilteredGpsPosition = false;
         hasFilteredAttitude = false;
         hasInitialReportedRollPitch = false;
         hasPreviousVelocityNed = false;
         hasPreviousVerticalPosition = false;
+        hasSlewLimitedDepth = false;
         hasSeenActiveThrusterOutput = false;
         hasLastTelemetryDiagnosticState = false;
         lastTelemetryDiagnosticState = default;
@@ -415,13 +416,15 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         if (ShouldLogForceApplication())
         {
             Debug.Log(
-                $"[ArduPilot JSON] force apply={shouldApply} fresh={hasFreshOutput} age={outputAge:0.000}s timeout={timeout:0.000}s active={hasActiveOutput} scale={directThrustScale:0.###} H=[{string.Join(", ", horizontalOutputs)}] V=[{string.Join(", ", verticalOutputs)}]");
+                $"[ArduPilot JSON] force apply={shouldApply} fresh={hasFreshOutput} age={outputAge:0.000}s timeout={timeout:0.000}s active={hasActiveOutput} scale={_56ThrustScale:0.###} H=[{string.Join(", ", horizontalOutputs)}] V=[{string.Join(", ", verticalOutputs)}]");
         }
 
         if (shouldApply)
             ApplySitlThrusterForces();
 
         EnforceWaterSurfaceNoBreachClamp();
+
+        SendTelemetryIfDue();
     }
 
     void ApplyWaterCurrentForces()
@@ -434,47 +437,46 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 #else
         Vector3 velocity = rb.velocity;
 #endif
-        Vector3 relativeVelocity = velocity - currentVelocity;
-        float linearDrag = Mathf.Max(0f, linearDragCoefficient);
-        float quadraticDrag = Mathf.Max(0f, quadraticDragCoefficient);
-        if ((linearDrag <= 0f && quadraticDrag <= 0f) || relativeVelocity.sqrMagnitude <= 1e-8f)
+        Vector3 relativeVelocity = velocity - _11CurrentVel;
+        float linearDrag = Mathf.Max(0f, _4LinDrag);
+        if (linearDrag <= 0f || relativeVelocity.sqrMagnitude <= 1e-8f)
             return;
 
-        Vector3 force = -relativeVelocity * (linearDrag + quadraticDrag * relativeVelocity.magnitude);
+        Vector3 force = -relativeVelocity * linearDrag;
         rb.AddForce(force, ForceMode.Force);
 
         if (ShouldLogWaterCurrentForce())
         {
             Debug.Log(
-                $"[ArduPilot JSON] current velocity=[{currentVelocity.x:0.###}, {currentVelocity.y:0.###}, {currentVelocity.z:0.###}] relative=[{relativeVelocity.x:0.###}, {relativeVelocity.y:0.###}, {relativeVelocity.z:0.###}] drag=({linearDrag:0.###}+{quadraticDrag:0.###}v) force=[{force.x:0.###}, {force.y:0.###}, {force.z:0.###}]");
+                $"[ArduPilot JSON] current velocity=[{_11CurrentVel.x:0.###}, {_11CurrentVel.y:0.###}, {_11CurrentVel.z:0.###}] relative=[{relativeVelocity.x:0.###}, {relativeVelocity.y:0.###}, {relativeVelocity.z:0.###}] drag={linearDrag:0.###} force=[{force.x:0.###}, {force.y:0.###}, {force.z:0.###}]");
         }
     }
 
     bool IsWaterCurrentActive()
     {
-        return applyWaterCurrent
-            || (autoApplyWaterCurrentWhenCurrentVelocityIsNonZero && currentVelocity.sqrMagnitude > 1e-8f);
+        return _9UseCurrent
+            || (_10AutoCurrent && _11CurrentVel.sqrMagnitude > 1e-8f);
     }
 
     void ApplyOceanWindWaveAutoTune()
     {
-        if (!autoTuneWaveResponseFromOceanWind || waterSurface == null)
+        if (!_33AutoTuneWind || _58Surface == null)
             return;
 
-        float windRatio = Mathf.Clamp01(waterSurface.largeWindSpeed / Mathf.Max(0.001f, oceanWindReferenceSpeedKmh));
+        float windRatio = Mathf.Clamp01(_58Surface.largeWindSpeed / Mathf.Max(0.001f, _34WindRefKmh));
         float lengthRatio = windRatio * windRatio;
-        waterSurfaceWaveLengthMeters = Mathf.Lerp(minAutoWaveLengthMeters, maxAutoWaveLengthMeters, lengthRatio);
-        waterParticleMotionScale = Mathf.Lerp(minAutoWaterParticleMotionScale, maxAutoWaterParticleMotionScale, windRatio);
-        waterSurfaceWavePeriodSeconds = Mathf.Sqrt(
-            Mathf.PI * 2f * waterSurfaceWaveLengthMeters / Mathf.Max(0.001f, gravityMetersPerSecondSquared));
+        _39WaveLenM = Mathf.Lerp(_35MinWaveLenM, _36MaxWaveLenM, lengthRatio);
+        _41MotionScale = Mathf.Lerp(_37MinMotionScale, _38MaxMotionScale, windRatio);
+        _40WavePeriodS = Mathf.Sqrt(
+            Mathf.PI * 2f * _39WaveLenM / Mathf.Max(0.001f, gravityMetersPerSecondSquared));
 
-        float orientationRadians = waterSurface.largeOrientationValue * Mathf.Deg2Rad;
-        waterParticleHorizontalDirection = new Vector3(Mathf.Sin(orientationRadians), 0f, Mathf.Cos(orientationRadians));
+        float orientationRadians = _58Surface.largeOrientationValue * Mathf.Deg2Rad;
+        _45HDirection = new Vector3(Mathf.Sin(orientationRadians), 0f, Mathf.Cos(orientationRadians));
     }
 
     void ApplyWaterSurfaceForces()
     {
-        if (rb == null || !applyWaterSurfaceForces)
+        if (rb == null || !_12UseSurface)
             return;
 
         if (ShouldSuppressWaterSurfaceForcesForDive())
@@ -484,7 +486,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         }
 
         ResolveWaterSurfaceIfNeeded();
-        if (waterSurface == null)
+        if (_58Surface == null)
             return;
 
         ApplyOceanWindWaveAutoTune();
@@ -517,18 +519,16 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             hasFilteredWaterSurfaceSamples = true;
 
         averageSurfaceY /= validCount;
-        float meanSurfaceY = waterSurfaceY;
+        float meanSurfaceY = _59SurfaceY;
         float depthCenter = meanSurfaceY - rb.position.y;
-        if (depthCenter <= 0f)
-            return;
 
         float waveInfluence = GetWaterSurfaceWaveInfluence(depthCenter);
 
-        if (applyWaterSurfaceTiltForces)
+        if (_17UseTilt)
         {
-            float tiltSpring = Mathf.Max(0f, waterSurfaceTiltSpringNPerM);
-            float tiltDamping = Mathf.Max(0f, waterSurfaceTiltDampingNPerMS);
-            float maxForce = Mathf.Max(0f, maxWaterSurfaceForcePerPointN);
+            float tiltSpring = Mathf.Max(0f, _18TiltSpring);
+            float tiltDamping = Mathf.Max(0f, _19TiltDamping);
+            float maxForce = Mathf.Max(0f, _20MaxPointN);
 
             for (int i = 0; i < samplePoints.Length; i++)
             {
@@ -556,29 +556,33 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             waveInfluence,
             out float waterParticleVelocityY,
             out float waterParticleAccelerationY);
-        float waterParticleAccelerationForce = rb.mass * waterParticleAccelerationY * Mathf.Max(0f, waterParticleAccelerationScale);
+        float waterParticleAccelerationForce = rb.mass * waterParticleAccelerationY * Mathf.Max(0f, _42AccelScale);
         float verticalForce;
-        if (holdDepthRelativeToWaterSurface)
+        if (_14HoldDepth)
         {
-            float hardLimitY = effectiveSurfaceY - Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
-            float targetY = effectiveSurfaceY - Mathf.Max(0f, waterSurfaceDesiredSubmergeMeters);
-            float guard = Mathf.Max(0f, waterSurfaceClampGuardMeters);
+            float hardLimitY = effectiveSurfaceY - Mathf.Max(0f, _22ClampBelowM);
+            float targetY = effectiveSurfaceY - Mathf.Max(0f, _13SubmergeM);
+            float guard = Mathf.Max(0f, _23ClampGuardM);
             if (guard > 0f)
                 targetY = Mathf.Min(targetY, hardLimitY - guard);
 
-            verticalForce = (targetY - rb.position.y) * Mathf.Max(0f, waterSurfaceVerticalSpringNPerM)
-                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS)
+            verticalForce = (targetY - rb.position.y) * Mathf.Max(0f, _15VSpring)
+                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, _16VDamping)
                 + waterParticleAccelerationForce;
         }
         else
         {
             float waveDisplacement = effectiveSurfaceY - meanSurfaceY;
-            verticalForce = (waveDisplacement * Mathf.Max(0f, waterSurfaceVerticalSpringNPerM)
-                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS)
+            verticalForce = (waveDisplacement * Mathf.Max(0f, _15VSpring)
+                + (waterParticleVelocityY - velocity.y) * Mathf.Max(0f, _16VDamping)
                 + waterParticleAccelerationForce);
+
+            float breachOvershoot = rb.position.y - effectiveSurfaceY + Mathf.Max(0f, _28BreachAntM);
+            if (breachOvershoot > 0f)
+                verticalForce -= breachOvershoot * Mathf.Max(0f, _15VSpring) * Mathf.Max(0f, _27BreachMult);
         }
 
-        float maxVerticalForce = Mathf.Max(0f, maxWaterParticleVerticalForceN);
+        float maxVerticalForce = Mathf.Max(0f, _43MaxVForceN);
         if (maxVerticalForce > 0f)
             verticalForce = Mathf.Clamp(verticalForce, -maxVerticalForce, maxVerticalForce);
 
@@ -592,26 +596,26 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         if (direction.sqrMagnitude <= 1e-8f)
             return;
 
-        float angularFrequency = Mathf.PI * 2f / Mathf.Max(0.001f, waterSurfaceWavePeriodSeconds);
+        float angularFrequency = Mathf.PI * 2f / Mathf.Max(0.001f, _40WavePeriodS);
         float targetVelocityAmplitude = surfaceWaveDisplacementY
             * angularFrequency
             * waveInfluence
-            * Mathf.Max(0f, waterParticleMotionScale)
-            * Mathf.Max(0f, waterParticleHorizontalMotionScale);
+            * Mathf.Max(0f, _41MotionScale)
+            * Mathf.Max(0f, _49HMotionScale);
 
         Vector3 force = Vector3.zero;
-        force += CalculateWaterParticleDirectionalForce(direction, targetVelocityAmplitude, Mathf.Max(0f, waterParticlePrimaryDirectionWeight), velocity);
-        force += CalculateWaterParticleDirectionalForce(new Vector3(-direction.z, 0f, direction.x), targetVelocityAmplitude, Mathf.Max(0f, waterParticleCrossDirectionWeight), velocity);
-        force += CalculateWaterParticleDirectionalForce((direction + new Vector3(direction.z, 0f, -direction.x)).normalized, targetVelocityAmplitude, Mathf.Max(0f, waterParticleObliqueDirectionWeight), velocity);
+        force += CalculateWaterParticleDirectionalForce(direction, targetVelocityAmplitude, Mathf.Max(0f, _46PrimaryWeight), velocity, waveInfluence);
+        force += CalculateWaterParticleDirectionalForce(new Vector3(-direction.z, 0f, direction.x), targetVelocityAmplitude, Mathf.Max(0f, _47CrossWeight), velocity, waveInfluence);
+        force += CalculateWaterParticleDirectionalForce((direction + new Vector3(direction.z, 0f, -direction.x)).normalized, targetVelocityAmplitude, Mathf.Max(0f, _48ObliqueWeight), velocity, waveInfluence);
 
-        float maxForce = Mathf.Max(0f, maxWaterParticleHorizontalForceN);
+        float maxForce = Mathf.Max(0f, _51MaxHForceN);
         if (maxForce > 0f && force.sqrMagnitude > maxForce * maxForce)
             force = force.normalized * maxForce;
 
         rb.AddForce(force, ForceMode.Force);
     }
 
-    Vector3 CalculateWaterParticleDirectionalForce(Vector3 direction, float targetVelocityAmplitude, float weight, Vector3 velocity)
+    Vector3 CalculateWaterParticleDirectionalForce(Vector3 direction, float targetVelocityAmplitude, float weight, Vector3 velocity, float waveInfluence)
     {
         if (weight <= 0f || direction.sqrMagnitude <= 1e-8f)
             return Vector3.zero;
@@ -619,16 +623,17 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         direction = direction.normalized;
         float targetVelocity = targetVelocityAmplitude * weight;
         if (IsWaterCurrentActive())
-            targetVelocity += Vector3.Dot(currentVelocity, direction);
+            targetVelocity += Vector3.Dot(_11CurrentVel, direction);
 
         float currentAlongDirection = Vector3.Dot(velocity, direction);
-        float force = (targetVelocity - currentAlongDirection) * Mathf.Max(0f, waterParticleHorizontalDampingNPerMS);
+        float dampingGain = Mathf.Max(0f, _50HDampingN) * Mathf.Clamp01(waveInfluence);
+        float force = (targetVelocity - currentAlongDirection) * dampingGain;
         return direction * force;
     }
 
     Vector3 GetWaterParticleHorizontalDirection()
     {
-        Vector3 direction = waterParticleHorizontalDirection;
+        Vector3 direction = _45HDirection;
         direction.y = 0f;
         if (direction.sqrMagnitude <= 1e-8f)
             direction = Vector3.forward;
@@ -654,7 +659,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         float surfaceWaveVelocityY = (surfaceWaveDisplacementY - lastWaterSurfaceWaveDisplacementY) / dt;
         lastWaterSurfaceWaveDisplacementY = surfaceWaveDisplacementY;
-        velocityY = surfaceWaveVelocityY * waveInfluence * Mathf.Max(0f, waterParticleMotionScale);
+        velocityY = surfaceWaveVelocityY * waveInfluence * Mathf.Max(0f, _41MotionScale);
 
         if (!hasLastWaterParticleVelocityY)
         {
@@ -670,8 +675,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     float GetWaterSurfaceWaveInfluence(float depthMeters)
     {
-        float minInfluence = Mathf.Clamp01(minimumWaterSurfaceWaveInfluence);
-        float wavelength = Mathf.Max(0.001f, waterSurfaceWaveLengthMeters);
+        float minInfluence = Mathf.Clamp01(_44MinWaveInfluence);
+        float wavelength = Mathf.Max(0.001f, _39WaveLenM);
         float influence = Mathf.Exp(-Mathf.PI * 2f * Mathf.Max(0f, depthMeters) / wavelength);
         return Mathf.Max(minInfluence, Mathf.Clamp01(influence));
     }
@@ -683,7 +688,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         try
         {
-            socketReceive = new UdpClient(Mathf.Clamp(localPort, 1, 65535));
+            socketReceive = new UdpClient(Mathf.Clamp(_1Port, 1, 65535));
             socketReceive.Client.ReceiveBufferSize = Mathf.Max(8192, receiveBufferSizeBytes);
             socketReceive.Client.Blocking = false;
             DisableUdpConnectionResetOnWindows(socketReceive.Client);
@@ -691,7 +696,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         catch (Exception e)
         {
             StopBridge();
-            Debug.LogWarning($"[ArduPilot JSON] Failed to bind UDP {localPort}: {e.Message}");
+            Debug.LogWarning($"[ArduPilot JSON] Failed to bind UDP {_1Port}: {e.Message}");
         }
     }
 
@@ -811,13 +816,13 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void ApplySitlThrusterForces()
     {
-        if (rb == null || sitlThrusters == null)
+        if (rb == null || _8Thrusters == null)
             return;
 
-        float scale = Mathf.Max(0f, directThrustScale);
-        for (int i = 0; i < sitlThrusters.Length; i++)
+        float scale = Mathf.Max(0f, _56ThrustScale);
+        for (int i = 0; i < _8Thrusters.Length; i++)
         {
-            SitlThrusterSpec thruster = sitlThrusters[i];
+            SitlThrusterSpec thruster = _8Thrusters[i];
             if (thruster == null)
                 continue;
 
@@ -844,22 +849,22 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     float GetMappedThrusterOutput(int oneBasedServoChannel)
     {
-        if (horizontalServoChannels != null && horizontalOutputs != null)
+        if (_52HChannels != null && horizontalOutputs != null)
         {
-            int count = Mathf.Min(horizontalServoChannels.Length, horizontalOutputs.Length);
+            int count = Mathf.Min(_52HChannels.Length, horizontalOutputs.Length);
             for (int i = 0; i < count; i++)
             {
-                if (horizontalServoChannels[i] == oneBasedServoChannel)
+                if (_52HChannels[i] == oneBasedServoChannel)
                     return horizontalOutputs[i];
             }
         }
 
-        if (verticalServoChannels != null && verticalOutputs != null)
+        if (_53VChannels != null && verticalOutputs != null)
         {
-            int count = Mathf.Min(verticalServoChannels.Length, verticalOutputs.Length);
+            int count = Mathf.Min(_53VChannels.Length, verticalOutputs.Length);
             for (int i = 0; i < count; i++)
             {
-                if (verticalServoChannels[i] == oneBasedServoChannel)
+                if (_53VChannels[i] == oneBasedServoChannel)
                     return verticalOutputs[i];
             }
         }
@@ -869,14 +874,14 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     float GetCommandedWorldVerticalThrusterForce()
     {
-        if (sitlThrusters == null)
+        if (_8Thrusters == null)
             return 0f;
 
         float verticalForce = 0f;
-        float scale = Mathf.Max(0f, directThrustScale);
-        for (int i = 0; i < sitlThrusters.Length; i++)
+        float scale = Mathf.Max(0f, _56ThrustScale);
+        for (int i = 0; i < _8Thrusters.Length; i++)
         {
-            SitlThrusterSpec thruster = sitlThrusters[i];
+            SitlThrusterSpec thruster = _8Thrusters[i];
             if (thruster == null)
                 continue;
 
@@ -904,8 +909,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     bool ShouldSuppressWaterSurfaceForcesForDive()
     {
-        return suppressWaterSurfaceForcesWhileDiving
-            && GetCommandedWorldVerticalThrusterForce() < -Mathf.Max(0f, waterSurfaceDiveForceThresholdN);
+        return _29SuppressDive
+            && GetCommandedWorldVerticalThrusterForce() < -Mathf.Max(0f, _30DiveThreshN);
     }
 
     bool ShouldLogServoPacket()
@@ -983,7 +988,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             return;
 
         lastUnmappedServoWarningTime = Time.unscaledTime;
-        Debug.LogWarning($"[ArduPilot JSON] Active PWM on unmapped channels: [{activeUnmapped}]. Current thruster mapping H=[{string.Join(", ", horizontalServoChannels)}] V=[{string.Join(", ", verticalServoChannels)}]. If these are motors, assign them in the bridge inspector; if they are lights/camera, ignore them.");
+        Debug.LogWarning($"[ArduPilot JSON] Active PWM on unmapped channels: [{activeUnmapped}]. Current thruster mapping H=[{string.Join(", ", _52HChannels)}] V=[{string.Join(", ", _53VChannels)}]. If these are motors, assign them in the bridge inspector; if they are lights/camera, ignore them.");
     }
 
     string FormatActiveServoOutputs(int servoCount, bool onlyUnmapped = false)
@@ -1012,7 +1017,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     bool IsMappedServoChannel(int oneBasedChannel)
     {
-        return ContainsChannel(horizontalServoChannels, oneBasedChannel) || ContainsChannel(verticalServoChannels, oneBasedChannel);
+        return ContainsChannel(_52HChannels, oneBasedChannel) || ContainsChannel(_53VChannels, oneBasedChannel);
     }
 
     bool IsIgnoredUnmappedServoChannel(int oneBasedChannel)
@@ -1051,9 +1056,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             CleanJsonFloat(state.accelBodyFrd.y),
             CleanJsonFloat(state.accelBodyFrd.z)
         };
-
-        if (ShouldSendGeographicPosition())
-            UpdateGeographicPosition(state.positionNed);
 
         outputPacket.position = new[]
         {
@@ -1096,8 +1098,10 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             ? Vector3.zero
             : FilterReportedPosition(rawPositionNed, state.timestamp);
 
-        if (ShouldSendGeographicPosition())
-            state.positionNed = FilterGpsPosition(state.positionNed, state.timestamp);
+        bool clampedAtSurface = state.positionNed.z < 0f;
+        if (clampedAtSurface)
+            state.positionNed.z = 0f;
+        state.positionNed.z = LimitReportedDepthSlew(state.positionNed.z, state.timestamp);
 
         Vector3 rigidbodyVelocityNed = LimitReportedVelocity(UnityWorldToNedVector(state.unityVelocity));
         Vector3 positionVelocityNed = EstimateVelocityFromPosition(state.positionNed, state.timestamp);
@@ -1107,6 +1111,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         if (deriveVerticalVelocityFromPosition && ShouldReportVerticalState())
             state.velocityNed.z = EstimateVerticalVelocityFromPosition(state.positionNed.z, state.timestamp);
+
+        if (clampedAtSurface && state.velocityNed.z < 0f)
+            state.velocityNed.z = 0f;
 
         if (state.stabilizeEkf)
             state.velocityNed = Vector3.zero;
@@ -1278,11 +1285,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         float deadzone = Mathf.Max(0f, rigidbodyVelocityDeadzone);
         return rigidbodyVelocityNed.sqrMagnitude <= deadzone * deadzone;
-    }
-
-    bool ShouldSendGeographicPosition()
-    {
-        return sendGeographicPosition || alwaysSendGeographicPositionForQgc;
     }
 
     float GetTelemetryTimestampSeconds()
@@ -1516,7 +1518,9 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             if (hasFilteredAttitude && lastAttitudeFilterTimestamp >= 0.0 && timestamp > lastAttitudeFilterTimestamp)
             {
                 float dt = Mathf.Clamp((float)(timestamp - lastAttitudeFilterTimestamp), 0.001f, 0.2f);
-                yawRate = LimitYawRate(NormalizeRadians(rawAttitude.z - lastFilteredYawRadians) / dt);
+                float previousUnfilteredYaw = lastFilteredYawRadians;
+                rawAttitude.z = LimitYawSlew(previousUnfilteredYaw, rawAttitude.z, dt);
+                yawRate = NormalizeRadians(rawAttitude.z - previousUnfilteredYaw) / dt;
             }
 
             filteredAttitudeRadians = rawAttitude;
@@ -1542,11 +1546,23 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         filteredAttitudeRadians.x = Mathf.Lerp(filteredAttitudeRadians.x, rawAttitude.x, alpha);
         filteredAttitudeRadians.y = Mathf.Lerp(filteredAttitudeRadians.y, rawAttitude.y, alpha);
         filteredAttitudeRadians.z = NormalizeRadians(filteredAttitudeRadians.z + NormalizeRadians(rawAttitude.z - filteredAttitudeRadians.z) * alpha);
+        filteredAttitudeRadians.z = LimitYawSlew(previousYaw, filteredAttitudeRadians.z, dtFiltered);
 
-        yawRate = LimitYawRate(NormalizeRadians(filteredAttitudeRadians.z - previousYaw) / dtFiltered);
+        yawRate = NormalizeRadians(filteredAttitudeRadians.z - previousYaw) / dtFiltered;
         lastFilteredYawRadians = filteredAttitudeRadians.z;
         lastAttitudeFilterTimestamp = timestamp;
         return filteredAttitudeRadians;
+    }
+
+    float LimitYawSlew(float previousYaw, float targetYaw, float dt)
+    {
+        float limit = Mathf.Max(0f, maxReportedYawRateRadiansPerSecond);
+        if (limit <= 0f)
+            return NormalizeRadians(targetYaw);
+
+        float maxStep = limit * Mathf.Max(0.001f, dt);
+        float delta = Mathf.Clamp(NormalizeRadians(targetYaw - previousYaw), -maxStep, maxStep);
+        return NormalizeRadians(previousYaw + delta);
     }
 
     float LimitYawRate(float yawRate)
@@ -1575,8 +1591,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void ResolveTelemetrySource()
     {
-        resolvedTelemetryTransform = telemetrySource != null
-            ? telemetrySource
+        resolvedTelemetryTransform = _2Target != null
+            ? _2Target
             : transform;
 
         telemetryRb = resolvedTelemetryTransform != null
@@ -1590,12 +1606,10 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     {
         Rigidbody sourceRb = telemetryRb != null ? telemetryRb : rb;
         if (sourceRb != null)
-            vehicleMassKg = Mathf.Max(0.001f, sourceRb.mass);
+            _3MassKg = Mathf.Max(0.001f, sourceRb.mass);
 
-        fluidDensityKgPerCubicMeter = Mathf.Max(0f, fluidDensityKgPerCubicMeter);
-
-        if (sitlThrusters == null || sitlThrusters.Length == 0)
-            sitlThrusters = CreateDefaultVectoredThrusterSpecs();
+        if (_8Thrusters == null || _8Thrusters.Length == 0)
+            _8Thrusters = CreateDefaultVectoredThrusterSpecs();
 
         NormalizeSitlThrusterSpecs();
     }
@@ -1618,9 +1632,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
             localPosition = localPosition,
             localDirection = localDirection.normalized,
             maxForwardThrustN = Mathf.Max(0f, maxForwardThrustN),
-            maxReverseThrustN = Mathf.Max(0f, maxReverseThrustN),
-            linearDragCoefficient = Mathf.Max(0f, linearDragCoefficient),
-            angularDragCoefficient = Mathf.Max(0f, angularDragCoefficient)
+            maxReverseThrustN = Mathf.Max(0f, maxReverseThrustN)
         };
     }
 
@@ -1630,32 +1642,32 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         const float y = -0.045f;
         const float z = 0.20f;
         const float verticalX = 0.12f;
-        float horizontalThrust = Mathf.Max(0f, defaultHorizontalThrusterMaxN);
-        float verticalThrust = Mathf.Max(0f, defaultVerticalThrusterMaxN);
+        float horizontalThrust = Mathf.Max(0f, _6HThrustN);
+        float verticalThrust = Mathf.Max(0f, _7VThrustN);
 
         return new[]
         {
-            BuildSitlThrusterSpec("M1 Front Right", GetOneBasedChannel(horizontalServoChannels, 0), new Vector3( x, y,  z), new Vector3( 1f, 0f, -1f), horizontalThrust, horizontalThrust),
-            BuildSitlThrusterSpec("M2 Front Left",  GetOneBasedChannel(horizontalServoChannels, 1), new Vector3(-x, y,  z), new Vector3(-1f, 0f, -1f), horizontalThrust, horizontalThrust),
-            BuildSitlThrusterSpec("M3 Rear Right",  GetOneBasedChannel(horizontalServoChannels, 2), new Vector3( x, y, -z), new Vector3( 1f, 0f,  1f), horizontalThrust, horizontalThrust),
-            BuildSitlThrusterSpec("M4 Rear Left",   GetOneBasedChannel(horizontalServoChannels, 3), new Vector3(-x, y, -z), new Vector3(-1f, 0f,  1f), horizontalThrust, horizontalThrust),
-            BuildSitlThrusterSpec("M5 Left Vertical",  GetOneBasedChannel(verticalServoChannels, 0), new Vector3(-verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
-            BuildSitlThrusterSpec("M6 Right Vertical", GetOneBasedChannel(verticalServoChannels, 1), new Vector3( verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
+            BuildSitlThrusterSpec("M1 Front Right", GetOneBasedChannel(_52HChannels, 0), new Vector3( x, y,  z), new Vector3( 1f, 0f, -1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M2 Front Left",  GetOneBasedChannel(_52HChannels, 1), new Vector3(-x, y,  z), new Vector3(-1f, 0f, -1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M3 Rear Right",  GetOneBasedChannel(_52HChannels, 2), new Vector3( x, y, -z), new Vector3( 1f, 0f,  1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M4 Rear Left",   GetOneBasedChannel(_52HChannels, 3), new Vector3(-x, y, -z), new Vector3(-1f, 0f,  1f), horizontalThrust, horizontalThrust),
+            BuildSitlThrusterSpec("M5 Left Vertical",  GetOneBasedChannel(_53VChannels, 0), new Vector3(-verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
+            BuildSitlThrusterSpec("M6 Right Vertical", GetOneBasedChannel(_53VChannels, 1), new Vector3( verticalX, 0f, 0f), Vector3.up, verticalThrust, verticalThrust),
         };
     }
 
     void NormalizeSitlThrusterSpecs()
     {
-        if (sitlThrusters == null)
+        if (_8Thrusters == null)
             return;
 
-        for (int i = 0; i < sitlThrusters.Length; i++)
+        for (int i = 0; i < _8Thrusters.Length; i++)
         {
-            SitlThrusterSpec thruster = sitlThrusters[i];
+            SitlThrusterSpec thruster = _8Thrusters[i];
             if (thruster == null)
             {
                 thruster = BuildSitlThrusterSpec($"Thruster {i + 1}", 1, Vector3.zero, Vector3.forward, 0f, 0f);
-                sitlThrusters[i] = thruster;
+                _8Thrusters[i] = thruster;
             }
 
             thruster.servoChannel = Mathf.Clamp(thruster.servoChannel, 1, 32);
@@ -1665,8 +1677,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
                 thruster.localDirection.Normalize();
             thruster.maxForwardThrustN = Mathf.Max(0f, thruster.maxForwardThrustN);
             thruster.maxReverseThrustN = Mathf.Max(0f, thruster.maxReverseThrustN);
-            thruster.linearDragCoefficient = Mathf.Max(0f, linearDragCoefficient);
-            thruster.angularDragCoefficient = Mathf.Max(0f, angularDragCoefficient);
         }
     }
 
@@ -1675,13 +1685,13 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         if (rb == null)
             return;
 
-        rb.mass = Mathf.Max(0.001f, vehicleMassKg);
+        rb.mass = Mathf.Max(0.001f, _3MassKg);
 #if UNITY_6000_0_OR_NEWER
-        rb.linearDamping = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, linearDragCoefficient);
+        rb.linearDamping = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, _4LinDrag);
 #else
-        rb.drag = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, linearDragCoefficient);
+        rb.drag = IsWaterCurrentActive() ? 0f : Mathf.Max(0f, _4LinDrag);
 #endif
-        rb.angularDamping = Mathf.Max(0f, angularDragCoefficient);
+        rb.angularDamping = Mathf.Max(0f, _5AngDrag);
     }
 
     Vector3 GetTelemetryPosition()
@@ -1702,18 +1712,18 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     float GetWaterSurfaceY()
     {
         ResolveWaterSurfaceIfNeeded();
-        if (waterSurface != null && TryGetWaterSurfaceY(GetTelemetryPosition(), out float y))
+        if (_58Surface != null && TryGetWaterSurfaceY(GetTelemetryPosition(), out float y))
             return y;
 
-        return waterSurfaceY;
+        return _59SurfaceY;
     }
 
     void ResolveWaterSurfaceIfNeeded()
     {
-        if (waterSurface != null)
+        if (_58Surface != null)
             return;
 
-        waterSurface = FindFirstObjectByType<WaterSurface>();
+        _58Surface = FindFirstObjectByType<WaterSurface>();
         hasWaterSearchCandidate = false;
         ResetFilteredWaterSurface();
     }
@@ -1728,34 +1738,34 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
         waterSearchParameters.startPositionWS = waterSearchResult.candidateLocationWS;
         waterSearchParameters.targetPositionWS = worldPosition;
-        waterSearchParameters.error = waterQueryError;
-        waterSearchParameters.maxIterations = waterQueryMaxIterations;
+        waterSearchParameters.error = _60QueryError;
+        waterSearchParameters.maxIterations = _61QueryIter;
         waterSearchParameters.outputNormal = false;
 
-        if (waterSurface.ProjectPointOnWaterSurface(waterSearchParameters, out waterSearchResult))
+        if (_58Surface.ProjectPointOnWaterSurface(waterSearchParameters, out waterSearchResult))
         {
             surfaceY = waterSearchResult.projectedPositionWS.y;
             return true;
         }
 
         hasWaterSearchCandidate = false;
-        surfaceY = waterSurfaceY;
+        surfaceY = _59SurfaceY;
         return false;
     }
 
     Vector3[] GetWaterSurfaceSamplePoints()
     {
-        if (waterSurfaceLocalSamplePoints == null || waterSurfaceLocalSamplePoints.Length == 0)
+        if (_21SamplePts == null || _21SamplePts.Length == 0)
             return null;
 
-        if (waterSurfaceWorldSamplePoints == null || waterSurfaceWorldSamplePoints.Length != waterSurfaceLocalSamplePoints.Length)
-            waterSurfaceWorldSamplePoints = new Vector3[waterSurfaceLocalSamplePoints.Length];
+        if (surfaceWorldSamplePoints == null || surfaceWorldSamplePoints.Length != _21SamplePts.Length)
+            surfaceWorldSamplePoints = new Vector3[_21SamplePts.Length];
 
         Transform referenceTransform = GetTelemetryTransform();
-        for (int i = 0; i < waterSurfaceLocalSamplePoints.Length; i++)
-            waterSurfaceWorldSamplePoints[i] = referenceTransform.TransformPoint(waterSurfaceLocalSamplePoints[i]);
+        for (int i = 0; i < _21SamplePts.Length; i++)
+            surfaceWorldSamplePoints[i] = referenceTransform.TransformPoint(_21SamplePts[i]);
 
-        return waterSurfaceWorldSamplePoints;
+        return surfaceWorldSamplePoints;
     }
 
     void EnsureWaterSurfaceSampleBuffers(int count)
@@ -1772,7 +1782,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     float FilterWaterSurfaceSampleY(int index, float rawSurfaceY)
     {
-        if (!lowPassWaterSurfaceForces || waterSurfaceLowPassTimeSeconds <= 0f)
+        if (!_31UseLowPass || _32LowPassS <= 0f)
         {
             filteredWaterSurfaceSampleY[index] = rawSurfaceY;
             return rawSurfaceY;
@@ -1792,7 +1802,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     float GetWaterSurfaceLowPassAlpha()
     {
-        float tau = Mathf.Max(0.001f, waterSurfaceLowPassTimeSeconds);
+        float tau = Mathf.Max(0.001f, _32LowPassS);
         float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
         return Mathf.Clamp01(1f - Mathf.Exp(-dt / tau));
     }
@@ -1808,39 +1818,51 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void EnforceWaterSurfaceNoBreachClamp()
     {
-        if (rb == null || !applyWaterSurfaceForces)
+        if (rb == null || !_12UseSurface)
             return;
 
         if (ShouldSuppressWaterSurfaceForcesForDive())
             return;
 
         ResolveWaterSurfaceIfNeeded();
-        if (waterSurface == null)
+        if (_58Surface == null)
             return;
 
-        float hardLimitY = GetWaterSurfaceY() - Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
-        if (rb.position.y <= hardLimitY)
+        float hardLimitY = GetWaterSurfaceY() - Mathf.Max(0f, _22ClampBelowM);
+        float overshoot = rb.position.y - hardLimitY;
+        if (overshoot <= 0f)
             return;
+
+        float softenTime = Mathf.Max(0f, _25ClampSoftenS);
+        float alpha = softenTime > 0f
+            ? 1f - Mathf.Exp(-Mathf.Max(0.0001f, Time.fixedDeltaTime) / softenTime)
+            : 1f;
+
+        float maxOvershoot = Mathf.Max(0f, _26ClampHardM);
+        float correctedOvershoot = overshoot * (1f - alpha);
+        bool hitHardMargin = correctedOvershoot > maxOvershoot;
+        if (hitHardMargin)
+            correctedOvershoot = maxOvershoot;
 
         Vector3 position = rb.position;
-        position.y = hardLimitY;
+        position.y = hardLimitY + correctedOvershoot;
         rb.position = position;
 
-        if (!zeroUpwardVelocityOnWaterSurfaceClamp)
+        if (!_24ZeroUpVel)
             return;
 
 #if UNITY_6000_0_OR_NEWER
         Vector3 velocity = rb.linearVelocity;
         if (velocity.y > 0f)
         {
-            velocity.y = 0f;
+            velocity.y = hitHardMargin ? 0f : velocity.y * (1f - alpha);
             rb.linearVelocity = velocity;
         }
 #else
         Vector3 velocity = rb.velocity;
         if (velocity.y > 0f)
         {
-            velocity.y = 0f;
+            velocity.y = hitHardMargin ? 0f : velocity.y * (1f - alpha);
             rb.velocity = velocity;
         }
 #endif
@@ -1898,44 +1920,6 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         return filteredPositionNed;
     }
 
-    Vector3 FilterGpsPosition(Vector3 rawPositionNed, double timestamp)
-    {
-        if (!filterGpsPosition)
-        {
-            filteredGpsPositionNed = rawPositionNed;
-            hasFilteredGpsPosition = true;
-            return rawPositionNed;
-        }
-
-        if (!hasFilteredGpsPosition || lastGpsFilterTimestamp < 0.0)
-        {
-            filteredGpsPositionNed = rawPositionNed;
-            hasFilteredGpsPosition = true;
-            lastGpsFilterTimestamp = timestamp;
-            return filteredGpsPositionNed;
-        }
-
-        float dt = Mathf.Clamp((float)(timestamp - lastGpsFilterTimestamp), 0.001f, 0.2f);
-        Vector3 delta = rawPositionNed - filteredGpsPositionNed;
-
-        Vector2 horizontalDelta = new Vector2(delta.x, delta.y);
-        float maxHorizontalStep = Mathf.Max(0.01f, maxGpsHorizontalSpeed) * dt;
-        if (horizontalDelta.sqrMagnitude > maxHorizontalStep * maxHorizontalStep)
-        {
-            horizontalDelta = horizontalDelta.normalized * maxHorizontalStep;
-            delta.x = horizontalDelta.x;
-            delta.y = horizontalDelta.y;
-        }
-
-        float maxVerticalStep = Mathf.Max(0f, maxGpsVerticalSpeed) * dt;
-        if (maxVerticalStep > 0f)
-            delta.z = Mathf.Clamp(delta.z, -maxVerticalStep, maxVerticalStep);
-
-        filteredGpsPositionNed += delta * Mathf.Clamp01(gpsPositionSmoothing);
-        lastGpsFilterTimestamp = timestamp;
-        return filteredGpsPositionNed;
-    }
-
     Vector3 EstimateVelocityFromPosition(Vector3 positionNed, double timestamp)
     {
         if (lastVelocityEstimateTimestamp < 0.0 || timestamp <= lastVelocityEstimateTimestamp)
@@ -1980,6 +1964,43 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         lastVerticalPositionDown = positionDownMeters;
         lastVerticalVelocityTimestamp = timestamp;
         return filteredVerticalVelocityDown;
+    }
+
+    float LimitReportedDepthSlew(float rawDepthDownMeters, double timestamp)
+    {
+        float depth = Mathf.Max(0f, rawDepthDownMeters);
+        if (!ShouldReportVerticalState())
+        {
+            slewLimitedDepthDown = 0f;
+            lastDepthSlewTimestamp = timestamp;
+            hasSlewLimitedDepth = true;
+            return 0f;
+        }
+
+        if (!hasSlewLimitedDepth || lastDepthSlewTimestamp < 0.0 || timestamp <= lastDepthSlewTimestamp)
+        {
+            slewLimitedDepthDown = depth;
+            lastDepthSlewTimestamp = timestamp;
+            hasSlewLimitedDepth = true;
+            return slewLimitedDepthDown;
+        }
+
+        float dt = Mathf.Clamp((float)(timestamp - lastDepthSlewTimestamp), 0.001f, 0.2f);
+        float verticalLimit = Mathf.Max(0f, maxReportedVerticalSpeed);
+        if (verticalLimit <= 0f)
+        {
+            slewLimitedDepthDown = depth;
+        }
+        else
+        {
+            float maxStep = verticalLimit * dt;
+            slewLimitedDepthDown += Mathf.Clamp(depth - slewLimitedDepthDown, -maxStep, maxStep);
+            if (slewLimitedDepthDown < 0f)
+                slewLimitedDepthDown = 0f;
+        }
+
+        lastDepthSlewTimestamp = timestamp;
+        return slewLimitedDepthDown;
     }
 
     Vector3 LimitReportedVelocity(Vector3 velocityNed)
@@ -2036,70 +2057,30 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
     void ResetMotionEstimates(Vector3 positionNed, Vector3 velocityNed, double timestamp)
     {
         filteredPositionNed = positionNed;
-        filteredGpsPositionNed = positionNed;
         lastReportedPositionNed = positionNed;
         filteredVelocityNed = velocityNed;
         lastVelocityNed = velocityNed;
         filteredAccelNed = Vector3.zero;
         lastVerticalPositionDown = positionNed.z;
+        slewLimitedDepthDown = Mathf.Max(0f, positionNed.z);
         filteredVerticalVelocityDown = 0f;
         lastPositionFilterTimestamp = timestamp;
-        lastGpsFilterTimestamp = timestamp;
         lastVelocityEstimateTimestamp = timestamp;
         lastAccelerationTimestamp = timestamp;
         lastVerticalVelocityTimestamp = timestamp;
+        lastDepthSlewTimestamp = timestamp;
         hasFilteredPosition = true;
-        hasFilteredGpsPosition = true;
         hasPreviousVelocityNed = true;
         hasPreviousVerticalPosition = true;
-    }
-
-    void UpdateGeographicPosition(Vector3 positionNed)
-    {
-        const double EarthRadiusMeters = 6378137.0;
-        double latRad = originLatitude * Mathf.Deg2Rad;
-        double metersPerDegreeLat = Math.PI * EarthRadiusMeters / 180.0;
-        double metersPerDegreeLon = metersPerDegreeLat * Math.Cos(latRad);
-
-        outputPacket.latitude = originLatitude + positionNed.x / metersPerDegreeLat;
-        outputPacket.longitude = originLongitude + (Math.Abs(metersPerDegreeLon) > 1e-6 ? positionNed.y / metersPerDegreeLon : 0.0);
-        outputPacket.altitude = originAltitudeMeters - positionNed.z;
+        hasSlewLimitedDepth = true;
     }
 
     string BuildTelemetryJson()
     {
-        if (!ShouldSendGeographicPosition())
-        {
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "{{\"timestamp\":{0:R},\"no_time_sync\":true,\"no_lockstep\":true,\"imu\":{{\"gyro\":[{1:R},{2:R},{3:R}],\"accel_body\":[{4:R},{5:R},{6:R}]}},\"position\":[{7:R},{8:R},{9:R}],\"attitude\":[{10:R},{11:R},{12:R}],\"velocity\":[{13:R},{14:R},{15:R}]}}",
-                (double)outputPacket.timestamp,
-                (double)outputPacket.imu.gyro[0],
-                (double)outputPacket.imu.gyro[1],
-                (double)outputPacket.imu.gyro[2],
-                (double)outputPacket.imu.accel_body[0],
-                (double)outputPacket.imu.accel_body[1],
-                (double)outputPacket.imu.accel_body[2],
-                (double)outputPacket.position[0],
-                (double)outputPacket.position[1],
-                (double)outputPacket.position[2],
-                (double)outputPacket.attitude[0],
-                (double)outputPacket.attitude[1],
-                (double)outputPacket.attitude[2],
-                (double)outputPacket.velocity[0],
-                (double)outputPacket.velocity[1],
-                (double)outputPacket.velocity[2]);
-        }
-
         return string.Format(
             CultureInfo.InvariantCulture,
-            omitLocalPositionWhenSendingGps
-                ? "{{\"timestamp\":{0:R},\"no_time_sync\":true,\"no_lockstep\":true,\"latitude\":{1:R},\"longitude\":{2:R},\"altitude\":{3:R},\"imu\":{{\"gyro\":[{4:R},{5:R},{6:R}],\"accel_body\":[{7:R},{8:R},{9:R}]}},\"attitude\":[{13:R},{14:R},{15:R}],\"velocity\":[{16:R},{17:R},{18:R}]}}"
-                : "{{\"timestamp\":{0:R},\"no_time_sync\":true,\"no_lockstep\":true,\"latitude\":{1:R},\"longitude\":{2:R},\"altitude\":{3:R},\"imu\":{{\"gyro\":[{4:R},{5:R},{6:R}],\"accel_body\":[{7:R},{8:R},{9:R}]}},\"position\":[{10:R},{11:R},{12:R}],\"attitude\":[{13:R},{14:R},{15:R}],\"velocity\":[{16:R},{17:R},{18:R}]}}",
+            "{{\"timestamp\":{0:R},\"no_time_sync\":true,\"no_lockstep\":true,\"imu\":{{\"gyro\":[{1:R},{2:R},{3:R}],\"accel_body\":[{4:R},{5:R},{6:R}]}},\"position\":[{7:R},{8:R},{9:R}],\"attitude\":[{10:R},{11:R},{12:R}],\"velocity\":[{13:R},{14:R},{15:R}]}}",
             (double)outputPacket.timestamp,
-            outputPacket.latitude,
-            outputPacket.longitude,
-            outputPacket.altitude,
             (double)outputPacket.imu.gyro[0],
             (double)outputPacket.imu.gyro[1],
             (double)outputPacket.imu.gyro[2],
@@ -2123,17 +2104,17 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         float horizontalSign = invertHorizontalMotorOutputs ? -1f : 1f;
         for (int i = 0; i < horizontalOutputTargets.Length; i++)
         {
-            int channel = GetChannelIndex(horizontalServoChannels, i);
+            int channel = GetChannelIndex(_52HChannels, i);
             horizontalOutputTargets[i] = channel >= 0 && channel < servoOutputs.Length
-                ? NormalizeServoPwm(servoOutputs[channel]) * GetOutputScale(horizontalOutputScales, i) * horizontalSign
+                ? NormalizeServoPwm(servoOutputs[channel]) * GetOutputScale(_54HScales, i) * horizontalSign
                 : 0f;
         }
 
         for (int i = 0; i < verticalOutputTargets.Length; i++)
         {
-            int channel = GetChannelIndex(verticalServoChannels, i);
+            int channel = GetChannelIndex(_53VChannels, i);
             verticalOutputTargets[i] = channel >= 0 && channel < servoOutputs.Length
-                ? NormalizeServoPwm(servoOutputs[channel]) * GetOutputScale(verticalOutputScales, i)
+                ? NormalizeServoPwm(servoOutputs[channel]) * GetOutputScale(_55VScales, i)
                 : 0f;
         }
 
@@ -2182,8 +2163,8 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void EnsureOutputArrays()
     {
-        int horizontalCount = horizontalServoChannels != null ? horizontalServoChannels.Length : 0;
-        int verticalCount = verticalServoChannels != null ? verticalServoChannels.Length : 0;
+        int horizontalCount = _52HChannels != null ? _52HChannels.Length : 0;
+        int verticalCount = _53VChannels != null ? _53VChannels.Length : 0;
 
         if (horizontalOutputs == null || horizontalOutputs.Length != horizontalCount)
             horizontalOutputs = new float[horizontalCount];
@@ -2283,42 +2264,40 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
 
     void EnsureInspectorDefaults()
     {
-        localPort = Mathf.Clamp(localPort, 1, 65535);
+        _1Port = Mathf.Clamp(_1Port, 1, 65535);
         maxPacketsPerUpdate = Mathf.Max(1, maxPacketsPerUpdate);
         receiveBufferSizeBytes = Mathf.Max(8192, receiveBufferSizeBytes);
-        vehicleMassKg = Mathf.Max(0.001f, vehicleMassKg);
-        linearDragCoefficient = Mathf.Max(0f, linearDragCoefficient);
-        quadraticDragCoefficient = Mathf.Max(0f, quadraticDragCoefficient);
-        angularDragCoefficient = Mathf.Max(0f, angularDragCoefficient);
-        fluidDensityKgPerCubicMeter = Mathf.Max(0f, fluidDensityKgPerCubicMeter);
-        defaultHorizontalThrusterMaxN = Mathf.Max(0f, defaultHorizontalThrusterMaxN);
-        defaultVerticalThrusterMaxN = Mathf.Max(0f, defaultVerticalThrusterMaxN);
-        currentVelocity = new Vector3(
-            float.IsFinite(currentVelocity.x) ? currentVelocity.x : 0f,
-            float.IsFinite(currentVelocity.y) ? currentVelocity.y : 0f,
-            float.IsFinite(currentVelocity.z) ? currentVelocity.z : 0f);
+        _3MassKg = Mathf.Max(0.001f, _3MassKg);
+        _4LinDrag = Mathf.Max(0f, _4LinDrag);
+        _5AngDrag = Mathf.Max(0f, _5AngDrag);
+        _6HThrustN = Mathf.Max(0f, _6HThrustN);
+        _7VThrustN = Mathf.Max(0f, _7VThrustN);
+        _11CurrentVel = new Vector3(
+            float.IsFinite(_11CurrentVel.x) ? _11CurrentVel.x : 0f,
+            float.IsFinite(_11CurrentVel.y) ? _11CurrentVel.y : 0f,
+            float.IsFinite(_11CurrentVel.z) ? _11CurrentVel.z : 0f);
         waterCurrentLogIntervalSeconds = Mathf.Max(0f, waterCurrentLogIntervalSeconds);
-        if (sitlThrusters == null)
-            sitlThrusters = Array.Empty<SitlThrusterSpec>();
+        if (_8Thrusters == null)
+            _8Thrusters = Array.Empty<SitlThrusterSpec>();
 
-        horizontalServoChannels = new[] { 1, 2, 3, 4 };
-        verticalServoChannels = new[] { 5, 6 };
-        horizontalOutputScales = new[] { 1f, 1f, 1f, 1f };
-        verticalOutputScales = CreateFilledArray(verticalServoChannels.Length, -1f);
-        if (sitlThrusters == null || sitlThrusters.Length == 0)
-            sitlThrusters = CreateDefaultVectoredThrusterSpecs();
+        _52HChannels = new[] { 1, 2, 3, 4 };
+        _53VChannels = new[] { 5, 6 };
+        _54HScales = new[] { 1f, 1f, 1f, 1f };
+        _55VScales = CreateFilledArray(_53VChannels.Length, -1f);
+        if (_8Thrusters == null || _8Thrusters.Length == 0)
+            _8Thrusters = CreateDefaultVectoredThrusterSpecs();
         if (ignoredUnmappedServoChannels == null)
             ignoredUnmappedServoChannels = Array.Empty<int>();
 
-        for (int i = 0; i < horizontalServoChannels.Length; i++)
+        for (int i = 0; i < _52HChannels.Length; i++)
         {
-            horizontalServoChannels[i] = Mathf.Clamp(horizontalServoChannels[i], 1, 32);
-            horizontalOutputScales[i] = Mathf.Clamp(horizontalOutputScales[i], -2f, 2f);
+            _52HChannels[i] = Mathf.Clamp(_52HChannels[i], 1, 32);
+            _54HScales[i] = Mathf.Clamp(_54HScales[i], -2f, 2f);
         }
-        for (int i = 0; i < verticalServoChannels.Length; i++)
+        for (int i = 0; i < _53VChannels.Length; i++)
         {
-            verticalServoChannels[i] = Mathf.Clamp(verticalServoChannels[i], 1, 32);
-            verticalOutputScales[i] = Mathf.Clamp(verticalOutputScales[i], -2f, 2f);
+            _53VChannels[i] = Mathf.Clamp(_53VChannels[i], 1, 32);
+            _55VScales[i] = Mathf.Clamp(_55VScales[i], -2f, 2f);
         }
         for (int i = 0; i < ignoredUnmappedServoChannels.Length; i++)
             ignoredUnmappedServoChannels[i] = Mathf.Clamp(ignoredUnmappedServoChannels[i], 1, 32);
@@ -2331,7 +2310,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         invertHorizontalMotorOutputs = false;
         actuatorOutputSmoothing = Mathf.Clamp(actuatorOutputSmoothing, 0.05f, 1f);
         maxActuatorOutputSlewPerSecond = Mathf.Max(1f, maxActuatorOutputSlewPerSecond);
-        directThrustScale = Mathf.Clamp(directThrustScale, 0f, 1f);
+        _56ThrustScale = Mathf.Clamp(_56ThrustScale, 0f, 1f);
         horizontalSurgeScale = Mathf.Clamp(horizontalSurgeScale, -2f, 2f);
         horizontalSwayScale = Mathf.Clamp(horizontalSwayScale, -2f, 2f);
         if (Mathf.Approximately(horizontalYawScale, -0.2f))
@@ -2349,7 +2328,7 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         reportVerticalState = true;
         zeroReportedRollPitchAtStart = true;
         invertReportedHorizontalPosition = false;
-        motorOutputYawScale = 1f;
+        motorOutputYawScale = Mathf.Clamp01(motorOutputYawScale);
         verticalDifferentialScale = 1f;
         yawAngleSign = 1f;
         yawRateSign = 1f;
@@ -2363,46 +2342,41 @@ public class ArduPilotJsonSitlBridge : MonoBehaviour
         reportedAttitudeSmoothing = 1f;
         deriveReportedYawRateFromAttitude = true;
         maxReportedYawRateRadiansPerSecond = 2.5f;
-        waterSurfaceY = float.IsFinite(waterSurfaceY) ? waterSurfaceY : 0f;
-        waterQueryError = Mathf.Max(0.001f, waterQueryError);
-        waterQueryMaxIterations = Mathf.Max(1, waterQueryMaxIterations);
-        waterSurfaceDesiredSubmergeMeters = Mathf.Max(0f, waterSurfaceDesiredSubmergeMeters);
-        waterSurfaceVerticalSpringNPerM = Mathf.Max(0f, waterSurfaceVerticalSpringNPerM);
-        waterSurfaceVerticalDampingNPerMS = Mathf.Max(0f, waterSurfaceVerticalDampingNPerMS);
-        waterSurfaceTiltSpringNPerM = Mathf.Max(0f, waterSurfaceTiltSpringNPerM);
-        waterSurfaceTiltDampingNPerMS = Mathf.Max(0f, waterSurfaceTiltDampingNPerMS);
-        maxWaterSurfaceForcePerPointN = Mathf.Max(0f, maxWaterSurfaceForcePerPointN);
-        waterSurfaceClampBelowSurfaceMeters = Mathf.Max(0f, waterSurfaceClampBelowSurfaceMeters);
-        waterSurfaceClampGuardMeters = Mathf.Max(0f, waterSurfaceClampGuardMeters);
-        waterSurfaceDiveForceThresholdN = Mathf.Max(0f, waterSurfaceDiveForceThresholdN);
-        waterSurfaceLowPassTimeSeconds = Mathf.Max(0f, waterSurfaceLowPassTimeSeconds);
-        oceanWindReferenceSpeedKmh = Mathf.Max(0.001f, oceanWindReferenceSpeedKmh);
-        minAutoWaveLengthMeters = Mathf.Max(0.001f, minAutoWaveLengthMeters);
-        maxAutoWaveLengthMeters = Mathf.Max(minAutoWaveLengthMeters, maxAutoWaveLengthMeters);
-        minAutoWaterParticleMotionScale = Mathf.Max(0f, minAutoWaterParticleMotionScale);
-        maxAutoWaterParticleMotionScale = Mathf.Max(minAutoWaterParticleMotionScale, maxAutoWaterParticleMotionScale);
-        waterSurfaceWaveLengthMeters = Mathf.Max(0.001f, waterSurfaceWaveLengthMeters);
-        waterParticleMotionScale = Mathf.Max(0f, waterParticleMotionScale);
-        waterParticleAccelerationScale = Mathf.Max(0f, waterParticleAccelerationScale);
-        maxWaterParticleVerticalForceN = Mathf.Max(0f, maxWaterParticleVerticalForceN);
-        waterSurfaceWavePeriodSeconds = Mathf.Max(0.001f, waterSurfaceWavePeriodSeconds);
-        waterParticlePrimaryDirectionWeight = Mathf.Max(0f, waterParticlePrimaryDirectionWeight);
-        waterParticleCrossDirectionWeight = Mathf.Max(0f, waterParticleCrossDirectionWeight);
-        waterParticleObliqueDirectionWeight = Mathf.Max(0f, waterParticleObliqueDirectionWeight);
-        waterParticleHorizontalMotionScale = Mathf.Max(0f, waterParticleHorizontalMotionScale);
-        waterParticleHorizontalDampingNPerMS = Mathf.Max(0f, waterParticleHorizontalDampingNPerMS);
-        maxWaterParticleHorizontalForceN = Mathf.Max(0f, maxWaterParticleHorizontalForceN);
-        minimumWaterSurfaceWaveInfluence = Mathf.Clamp01(minimumWaterSurfaceWaveInfluence);
-        if (waterSurfaceLocalSamplePoints == null)
-            waterSurfaceLocalSamplePoints = Array.Empty<Vector3>();
-        alwaysSendGeographicPositionForQgc = false;
-        sendGeographicPosition = false;
-        omitLocalPositionWhenSendingGps = false;
-        maxGpsHorizontalSpeed = Mathf.Max(0.1f, maxGpsHorizontalSpeed);
-        maxGpsVerticalSpeed = Mathf.Max(0f, maxGpsVerticalSpeed);
-        gpsPositionSmoothing = Mathf.Clamp(gpsPositionSmoothing, 0.01f, 1f);
-        deriveVelocityFromPosition = true;
+        _59SurfaceY = float.IsFinite(_59SurfaceY) ? _59SurfaceY : 0f;
+        _60QueryError = Mathf.Max(0.001f, _60QueryError);
+        _61QueryIter = Mathf.Max(1, _61QueryIter);
+        _13SubmergeM = Mathf.Max(0f, _13SubmergeM);
+        _15VSpring = Mathf.Max(0f, _15VSpring);
+        _16VDamping = Mathf.Max(0f, _16VDamping);
+        _18TiltSpring = Mathf.Max(0f, _18TiltSpring);
+        _19TiltDamping = Mathf.Max(0f, _19TiltDamping);
+        _20MaxPointN = Mathf.Max(0f, _20MaxPointN);
+        _22ClampBelowM = Mathf.Max(0f, _22ClampBelowM);
+        _23ClampGuardM = Mathf.Max(0f, _23ClampGuardM);
+        _30DiveThreshN = Mathf.Max(0f, _30DiveThreshN);
+        _32LowPassS = Mathf.Max(0f, _32LowPassS);
+        _34WindRefKmh = Mathf.Max(0.001f, _34WindRefKmh);
+        _35MinWaveLenM = Mathf.Max(0.001f, _35MinWaveLenM);
+        _36MaxWaveLenM = Mathf.Max(_35MinWaveLenM, _36MaxWaveLenM);
+        _37MinMotionScale = Mathf.Max(0f, _37MinMotionScale);
+        _38MaxMotionScale = Mathf.Max(_37MinMotionScale, _38MaxMotionScale);
+        _39WaveLenM = Mathf.Max(0.001f, _39WaveLenM);
+        _41MotionScale = Mathf.Max(0f, _41MotionScale);
+        _42AccelScale = Mathf.Max(0f, _42AccelScale);
+        _43MaxVForceN = Mathf.Max(0f, _43MaxVForceN);
+        _40WavePeriodS = Mathf.Max(0.001f, _40WavePeriodS);
+        _46PrimaryWeight = Mathf.Max(0f, _46PrimaryWeight);
+        _47CrossWeight = Mathf.Max(0f, _47CrossWeight);
+        _48ObliqueWeight = Mathf.Max(0f, _48ObliqueWeight);
+        _49HMotionScale = Mathf.Max(0f, _49HMotionScale);
+        _50HDampingN = Mathf.Max(0f, _50HDampingN);
+        _51MaxHForceN = Mathf.Max(0f, _51MaxHForceN);
+        _44MinWaveInfluence = Mathf.Clamp01(_44MinWaveInfluence);
+        if (_21SamplePts == null)
+            _21SamplePts = Array.Empty<Vector3>();
+        deriveVelocityFromPosition = false;
         usePositionVelocityWhenRigidbodyIsStopped = true;
+        deriveVerticalVelocityFromPosition = false;
         maxReportedHorizontalSpeed = Mathf.Max(0.1f, maxReportedHorizontalSpeed);
         maxReportedVerticalSpeed = Mathf.Max(2f, maxReportedVerticalSpeed);
         positionTinyValueEpsilon = 0f;
