@@ -1,0 +1,17 @@
+{
+  "name": "jp.rbulinx.sitl-engine",
+  "version": "0.1.0",
+  "displayName": "SITL Engine Core (ArduPilot JSON Backend)",
+  "description": "Generic, vehicle-agnostic ArduPilot SIM_JSON SITL bridge for Unity. Handles UDP/JSON transport, coordinate frame conversion, PWM decoding, telemetry filtering, and EKF diagnostics. Vehicle-specific physics (ROV water dynamics, UAV rotor dynamics, etc.) are supplied by a pluggable IVehicleForceModule implementation.",
+  "unity": "2022.3",
+  "keywords": [
+    "ardupilot",
+    "sitl",
+    "simulation",
+    "rov",
+    "uav"
+  ],
+  "author": {
+    "name": "rbulinx"
+  }
+}

@@ -1,0 +1,14 @@
+{
+    "name": "jp.rbulinx.sitl-engine",
+    "rootNamespace": "RbulinX.SitlEngine",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
