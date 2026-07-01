@@ -41,8 +41,10 @@ namespace Robalink.OculusEmulator
         public int rangeCount = 1024;
         [Range(0, 255)] public byte gammaCorrection = 127;
         public byte flags = 0;
-        [Tooltip("0 means use the range requested by the Viewer. Set > 0 to force a test range in meters.")]
-        public float overrideRequestedRangeMeters = 20f;
+        [Tooltip("Enable only for local tests. Normally the sonar follows the range requested by ViewPoint.")]
+        public bool forceOverrideRequestedRange = false;
+        [Tooltip("Forced test range in meters when Force Override Requested Range is enabled.")]
+        public float overrideRequestedRangeMeters = 0f;
 
         [Header("Scene sensing")]
         public LayerMask targetLayers = ~0;
@@ -135,12 +137,6 @@ namespace Robalink.OculusEmulator
 
         void OnEnable()
         {
-            // Keep every scene/prefab on the requested 20 m emulator range,
-            // including older serialized instances that still contain 0 or 10 m.
-            overrideRequestedRangeMeters = 20f;
-            highFrequencyMaxRangeMeters = Mathf.Max(20f, highFrequencyMaxRangeMeters);
-            lowFrequencyMaxRangeMeters = Mathf.Max(20f, lowFrequencyMaxRangeMeters);
-
             if (rng == null) rng = new System.Random(12345);
             startTime = Time.realtimeSinceStartupAsDouble;
             if (statusUdp == null) StartStatusBroadcaster();
@@ -444,11 +440,13 @@ namespace Robalink.OculusEmulator
             if (request.RangePercentOrMeters > 0.0)
             {
                 float frequencyMaxRange = frequencyMode == OculusFrequencyMode.High ? highFrequencyMaxRangeMeters : lowFrequencyMaxRangeMeters;
-                float requestedRangePercent = Mathf.Clamp((float)request.RangePercentOrMeters, 0f, 100f);
-                float requestedMeters = frequencyMaxRange * (requestedRangePercent / 100f);
-                float effectiveRequestedMeters = overrideRequestedRangeMeters > 0f ? overrideRequestedRangeMeters : requestedMeters;
+                float requestedValue = (float)request.RangePercentOrMeters;
+                float requestedMeters = request.RangeIsMeters
+                    ? requestedValue
+                    : frequencyMaxRange * (Mathf.Clamp(requestedValue, 0f, 100f) / 100f);
+                float effectiveRequestedMeters = forceOverrideRequestedRange && overrideRequestedRangeMeters > 0f ? overrideRequestedRangeMeters : requestedMeters;
                 requestedRangeMeters = Mathf.Clamp(effectiveRequestedMeters, minRangeMeters, frequencyMaxRange);
-                defaultRangePercent = requestedRangeMeters / Mathf.Max(0.001f, frequencyMaxRange) * 100.0;
+                defaultRangePercent = requestedRangeMeters;
             }
 
             if (request.Salinity >= 0.0)
@@ -595,7 +593,7 @@ namespace Robalink.OculusEmulator
             get
             {
                 float modeMax = frequencyMode == OculusFrequencyMode.High ? highFrequencyMaxRangeMeters : lowFrequencyMaxRangeMeters;
-                if (overrideRequestedRangeMeters > 0f)
+                if (forceOverrideRequestedRange && overrideRequestedRangeMeters > 0f)
                     return Mathf.Clamp(overrideRequestedRangeMeters, minRangeMeters, modeMax);
                 return requestedRangeMeters > 0f ? Mathf.Min(requestedRangeMeters, modeMax) : modeMax;
             }
@@ -621,7 +619,7 @@ namespace Robalink.OculusEmulator
                 TemperatureDegC = defaultTemperatureDegC,
                 SpeedOfSoundMps = defaultSpeedOfSoundMps,
                 GainPercent = defaultGainPercent,
-                RangePercent = defaultRangePercent,
+                RangePercent = maxRange,
                 SalinityPpt = defaultSalinityPpt,
                 RangeResolutionMeters = maxRange / Mathf.Max(1, rangeCount),
                 AzimuthsRad = new double[beamCount],

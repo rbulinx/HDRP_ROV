@@ -68,6 +68,7 @@ namespace Robalink.OculusEmulator
         public byte GammaCorrection;
         public byte Flags;
         public double RangePercentOrMeters;
+        public bool RangeIsMeters;
         public double GainPercent;
         public double SpeedOfSound;
         public double Salinity;
@@ -132,6 +133,7 @@ namespace Robalink.OculusEmulator
                 request.GammaCorrection = br.ReadByte();
                 request.Flags = br.ReadByte();
                 request.RangePercentOrMeters = br.ReadDouble();
+                request.RangeIsMeters = true;
                 request.GainPercent = br.ReadDouble();
                 request.SpeedOfSound = br.ReadDouble();
                 request.Salinity = br.ReadDouble();
@@ -145,6 +147,7 @@ namespace Robalink.OculusEmulator
                 request.GammaCorrection = br.ReadByte();
                 request.Flags = br.ReadByte();
                 request.RangePercentOrMeters = br.ReadDouble();
+                request.RangeIsMeters = true;
                 request.GainPercent = br.ReadDouble();
                 request.SpeedOfSound = br.ReadDouble();
                 request.Salinity = br.ReadDouble();
